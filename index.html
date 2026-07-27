@@ -13,11 +13,18 @@
     <div class="site-header__inner page-shell">
       <a class="site-brand" href="#home">Eduardo Rabelo de Moraes</a>
 
+      <!--
+        Global navigation rule:
+        On the Home page, Contact points to #contact.
+        On future internal pages, Contact must point to index.html#contact
+        or the equivalent root-relative Home anchor.
+        Do not duplicate the Contact section or create a separate Contact page.
+      -->
       <nav class="primary-nav" aria-label="Primary navigation">
         <ul class="primary-nav__list">
           <li><a href="#home" aria-current="page">Home</a></li>
           <li><a href="#expertise">Expertise</a></li>
-          <li><a href="#insights">Insights &amp; Materials</a></li>
+          <li><a href="#insights-materials">Insights &amp; Materials</a></li>
           <li><a href="#about">About</a></li>
           <li><a href="#contact">Contact</a></li>
         </ul>
@@ -29,7 +36,7 @@
           <ul class="mobile-nav__list">
             <li><a href="#home" aria-current="page">Home</a></li>
             <li><a href="#expertise">Expertise</a></li>
-            <li><a href="#insights">Insights &amp; Materials</a></li>
+            <li><a href="#insights-materials">Insights &amp; Materials</a></li>
             <li><a href="#about">About</a></li>
             <li><a href="#contact">Contact</a></li>
           </ul>
@@ -48,8 +55,27 @@
         </p>
 
         <div class="hero__content">
-          <h1 id="hero-title">Translator &amp; Localization Specialist</h1>
-          <p class="hero__statement">Language work shaped by precision, context and informed judgment.</p>
+          <div class="hero__lead">
+            <h1 id="hero-title">
+              <span>Translator &amp;</span>
+              <span>Localization Specialist</span>
+            </h1>
+            <p class="hero__statement">Language work shaped by precision, context and informed judgment.</p>
+          </div>
+
+          <div class="hero__details">
+            <p class="hero__areas">
+              <span class="hero__area">Legal Translation</span>
+              <span class="hero__area">Game Localization</span>
+              <span class="hero__area">Editorial Translation</span>
+              <span class="hero__area">Linguistic QA</span>
+            </p>
+
+            <div class="hero__actions">
+              <a href="#expertise">Explore Expertise →</a>
+              <a href="#insights-materials">Insights &amp; Materials →</a>
+            </div>
+          </div>
         </div>
       </div>
     </section>

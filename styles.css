@@ -116,14 +116,16 @@ a {
 }
 
 .primary-nav a:hover,
-.mobile-nav a:hover {
+.mobile-nav a:hover,
+.hero__actions a:hover {
   color: var(--color-blue);
 }
 
 .site-brand:focus-visible,
 .primary-nav a:focus-visible,
 .mobile-nav summary:focus-visible,
-.mobile-nav a:focus-visible {
+.mobile-nav a:focus-visible,
+.hero__actions a:focus-visible {
   outline: 2px solid var(--color-focus);
   outline-offset: 4px;
 }
@@ -188,34 +190,92 @@ a {
 
 .hero__content {
   align-self: end;
-  margin-top: clamp(5rem, 13vh, 10rem);
+  margin-top: clamp(3.75rem, 9vh, 7.5rem);
   display: grid;
-  grid-template-columns: minmax(0, 1.65fr) minmax(17rem, 0.65fr);
+  grid-template-columns: minmax(0, 1.45fr) minmax(20rem, 0.75fr);
   align-items: end;
-  gap: clamp(3rem, 8vw, 8rem);
+  gap: clamp(3.5rem, 8vw, 8rem);
+}
+
+.hero__lead,
+.hero__details {
+  min-width: 0;
 }
 
 .hero h1 {
-  max-width: 11ch;
+  max-width: 13ch;
   margin: 0;
   color: var(--color-blue-deep);
   font-family: var(--font-display);
-  font-size: clamp(3.8rem, 6.5vw, 6.25rem);
+  font-size: clamp(3.65rem, 6vw, 6rem);
   font-weight: 400;
   line-height: 0.98;
   letter-spacing: -0.04em;
-  text-wrap: balance;
+}
+
+.hero h1 span {
+  display: block;
 }
 
 .hero__statement {
-  max-width: 31ch;
-  margin: 0;
-  padding-left: clamp(1.5rem, 3vw, 2.5rem);
+  max-width: 39ch;
+  margin: clamp(1.75rem, 4vh, 2.75rem) 0 0;
+  padding-left: clamp(1.25rem, 2.5vw, 2rem);
   border-left: 1px solid var(--color-rule);
   color: var(--color-ink);
-  font-size: clamp(1.05rem, 1.4vw, 1.25rem);
+  font-size: clamp(1.05rem, 1.35vw, 1.22rem);
   line-height: 1.6;
   text-wrap: pretty;
+}
+
+.hero__details {
+  padding-left: clamp(1.75rem, 3vw, 2.75rem);
+  display: grid;
+  gap: clamp(1.75rem, 4vh, 2.75rem);
+  border-left: 1px solid var(--color-rule);
+}
+
+.hero__areas {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.65rem 0;
+  color: var(--color-blue-deep);
+  font-size: clamp(0.82rem, 1vw, 0.92rem);
+  font-weight: 600;
+  line-height: 1.55;
+  letter-spacing: 0.035em;
+}
+
+.hero__area {
+  white-space: nowrap;
+}
+
+.hero__area + .hero__area::before {
+  margin-inline: 0.7rem;
+  color: var(--color-muted);
+  content: "·";
+}
+
+.hero__actions {
+  padding-top: clamp(1.25rem, 2.5vh, 1.75rem);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.85rem clamp(1.5rem, 3vw, 2.5rem);
+  border-top: 1px solid var(--color-rule);
+}
+
+.hero__actions a {
+  padding-block: 0.35rem;
+  color: var(--color-blue-deep);
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0.055em;
+  text-decoration: none;
+  border-bottom: 1px solid currentColor;
 }
 
 @media (max-width: 64rem) {
@@ -285,6 +345,15 @@ a {
     display: block;
     padding-block: 0.9rem;
   }
+
+  .hero__content {
+    grid-template-columns: minmax(0, 1.25fr) minmax(18rem, 0.75fr);
+    gap: clamp(2.5rem, 5vw, 4.5rem);
+  }
+
+  .hero h1 {
+    font-size: clamp(3.35rem, 6.8vw, 5.25rem);
+  }
 }
 
 @media (max-width: 48rem) {
@@ -310,31 +379,73 @@ a {
 
   .hero__content {
     align-self: end;
-    margin-top: clamp(4rem, 12vh, 7rem);
+    margin-top: clamp(3rem, 8vh, 5rem);
     grid-template-columns: minmax(0, 1fr);
-    gap: clamp(2rem, 7vw, 3rem);
+    gap: clamp(2.25rem, 7vw, 3.5rem);
   }
 
   .hero h1 {
     max-width: 12ch;
-    font-size: clamp(2.75rem, 13vw, 4.5rem);
+    font-size: clamp(2.7rem, 12.5vw, 4.35rem);
     line-height: 1;
   }
 
   .hero__statement {
-    max-width: 34ch;
-    padding-top: 1.25rem;
-    padding-left: 0;
-    border-top: 1px solid var(--color-rule);
-    border-left: 0;
+    max-width: 35ch;
+    margin-top: clamp(1.5rem, 5vw, 2rem);
+    padding-left: 1.15rem;
     font-size: clamp(1rem, 4vw, 1.12rem);
     line-height: 1.55;
+  }
+
+  .hero__details {
+    padding-top: clamp(1.5rem, 5vw, 2rem);
+    padding-left: 0;
+    gap: clamp(1.5rem, 5vw, 2.25rem);
+    border-top: 1px solid var(--color-rule);
+    border-left: 0;
+  }
+
+  .hero__areas {
+    max-width: 33rem;
+    font-size: clamp(0.8rem, 3.4vw, 0.9rem);
+    line-height: 1.5;
+  }
+
+  .hero__actions {
+    gap: 0.8rem 1.75rem;
   }
 
   .hero::before {
     width: 22rem;
     height: 22rem;
     transform: translate(50%, -52%);
+  }
+}
+
+@media (max-width: 30rem) {
+  .hero__inner {
+    min-height: auto;
+  }
+
+  .hero h1 {
+    max-width: 11ch;
+  }
+
+  .hero__areas {
+    display: grid;
+    justify-items: start;
+    gap: 0.6rem;
+  }
+
+  .hero__area + .hero__area::before {
+    margin-right: 0.7rem;
+    margin-left: 0;
+  }
+
+  .hero__actions {
+    display: grid;
+    justify-items: start;
   }
 }
 
