@@ -192,9 +192,9 @@ a {
   align-self: end;
   margin-top: clamp(3.75rem, 9vh, 7.5rem);
   display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(20rem, 0.75fr);
-  align-items: end;
-  gap: clamp(3.5rem, 8vw, 8rem);
+  grid-template-columns: minmax(0, 1.32fr) minmax(21rem, 0.88fr);
+  align-items: center;
+  gap: clamp(3rem, 5.5vw, 5.5rem);
 }
 
 .hero__lead,
@@ -220,8 +220,8 @@ a {
 .hero__statement {
   max-width: 39ch;
   margin: clamp(1.75rem, 4vh, 2.75rem) 0 0;
-  padding-left: clamp(1.25rem, 2.5vw, 2rem);
-  border-left: 1px solid var(--color-rule);
+  padding-top: clamp(1.25rem, 2.5vh, 1.75rem);
+  border-top: 1px solid var(--color-rule);
   color: var(--color-ink);
   font-size: clamp(1.05rem, 1.35vw, 1.22rem);
   line-height: 1.6;
@@ -229,8 +229,9 @@ a {
 }
 
 .hero__details {
-  align-self: end;
-  margin-bottom: clamp(1rem, 2.4vh, 1.75rem);
+  align-self: center;
+  margin-bottom: 0;
+  padding-block: clamp(0.4rem, 1vh, 0.75rem);
   padding-left: clamp(1.75rem, 3vw, 2.75rem);
   display: grid;
   gap: clamp(1.75rem, 4vh, 2.75rem);
@@ -349,8 +350,8 @@ a {
   }
 
   .hero__content {
-    grid-template-columns: minmax(0, 1.25fr) minmax(18rem, 0.75fr);
-    gap: clamp(2.5rem, 5vw, 4.5rem);
+    grid-template-columns: minmax(0, 1.18fr) minmax(19rem, 0.82fr);
+    gap: clamp(2.25rem, 4vw, 3.5rem);
   }
 
   .hero h1 {
@@ -383,6 +384,7 @@ a {
     align-self: end;
     margin-top: clamp(3rem, 8vh, 5rem);
     grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
     gap: clamp(2.25rem, 7vw, 3.5rem);
   }
 
@@ -395,14 +397,17 @@ a {
   .hero__statement {
     max-width: 35ch;
     margin-top: clamp(1.5rem, 5vw, 2rem);
-    padding-left: 1.15rem;
+    padding-top: clamp(1.1rem, 4vw, 1.4rem);
     font-size: clamp(1rem, 4vw, 1.12rem);
     line-height: 1.55;
   }
 
   .hero__details {
+    align-self: stretch;
     margin-bottom: 0;
     padding-top: clamp(1.5rem, 5vw, 2rem);
+    padding-right: 0;
+    padding-bottom: 0;
     padding-left: 0;
     gap: clamp(1.6rem, 5.5vw, 2.35rem);
     border-top: 1px solid rgba(18, 63, 87, 0.3);
