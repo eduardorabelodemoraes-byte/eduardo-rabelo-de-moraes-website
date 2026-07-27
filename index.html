@@ -3,10 +3,56 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Eduardo Rabelo de Moraes — Translator and Localization Specialist.">
   <title>Eduardo Rabelo de Moraes</title>
   <link rel="stylesheet" href="styles.css">
   <script src="script.js" defer></script>
 </head>
 <body>
+  <header class="site-header">
+    <div class="site-header__inner page-shell">
+      <a class="site-brand" href="#home">Eduardo Rabelo de Moraes</a>
+
+      <nav class="primary-nav" aria-label="Primary navigation">
+        <ul class="primary-nav__list">
+          <li><a href="#home" aria-current="page">Home</a></li>
+          <li><a href="#expertise">Expertise</a></li>
+          <li><a href="#insights">Insights &amp; Materials</a></li>
+          <li><a href="#about">About</a></li>
+          <li><a href="#contact">Contact</a></li>
+        </ul>
+      </nav>
+
+      <details class="mobile-nav">
+        <summary>Menu</summary>
+        <nav class="mobile-nav__panel" aria-label="Mobile navigation">
+          <ul class="mobile-nav__list">
+            <li><a href="#home" aria-current="page">Home</a></li>
+            <li><a href="#expertise">Expertise</a></li>
+            <li><a href="#insights">Insights &amp; Materials</a></li>
+            <li><a href="#about">About</a></li>
+            <li><a href="#contact">Contact</a></li>
+          </ul>
+        </nav>
+      </details>
+    </div>
+  </header>
+
+  <main id="home">
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero__inner page-shell">
+        <p class="hero__language-pair" aria-label="English ⇄ Brazilian Portuguese">
+          <span>English</span>
+          <span class="hero__exchange" aria-hidden="true">⇄</span>
+          <span>Brazilian Portuguese</span>
+        </p>
+
+        <div class="hero__content">
+          <h1 id="hero-title">Translator &amp; Localization Specialist</h1>
+          <p class="hero__statement">Language work shaped by precision, context and informed judgment.</p>
+        </div>
+      </div>
+    </section>
+  </main>
 </body>
 </html>
