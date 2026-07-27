@@ -229,10 +229,12 @@ a {
 }
 
 .hero__details {
+  align-self: end;
+  margin-bottom: clamp(1rem, 2.4vh, 1.75rem);
   padding-left: clamp(1.75rem, 3vw, 2.75rem);
   display: grid;
   gap: clamp(1.75rem, 4vh, 2.75rem);
-  border-left: 1px solid var(--color-rule);
+  border-left: 1px solid rgba(18, 63, 87, 0.3);
 }
 
 .hero__areas {
@@ -241,11 +243,11 @@ a {
   flex-wrap: wrap;
   align-items: baseline;
   gap: 0.65rem 0;
-  color: var(--color-blue-deep);
-  font-size: clamp(0.82rem, 1vw, 0.92rem);
-  font-weight: 600;
+  color: var(--color-ink);
+  font-size: clamp(0.86rem, 1.05vw, 0.97rem);
+  font-weight: 650;
   line-height: 1.55;
-  letter-spacing: 0.035em;
+  letter-spacing: 0.028em;
 }
 
 .hero__area {
@@ -264,18 +266,18 @@ a {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.85rem clamp(1.5rem, 3vw, 2.5rem);
-  border-top: 1px solid var(--color-rule);
+  border-top: 1px solid rgba(18, 63, 87, 0.3);
 }
 
 .hero__actions a {
-  padding-block: 0.35rem;
-  color: var(--color-blue-deep);
-  font-size: 0.82rem;
-  font-weight: 600;
+  padding-block: 0.4rem;
+  color: var(--color-ink);
+  font-size: clamp(0.85rem, 1vw, 0.92rem);
+  font-weight: 650;
   line-height: 1.4;
-  letter-spacing: 0.055em;
+  letter-spacing: 0.045em;
   text-decoration: none;
-  border-bottom: 1px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
 }
 
 @media (max-width: 64rem) {
@@ -399,21 +401,27 @@ a {
   }
 
   .hero__details {
+    margin-bottom: 0;
     padding-top: clamp(1.5rem, 5vw, 2rem);
     padding-left: 0;
-    gap: clamp(1.5rem, 5vw, 2.25rem);
-    border-top: 1px solid var(--color-rule);
+    gap: clamp(1.6rem, 5.5vw, 2.35rem);
+    border-top: 1px solid rgba(18, 63, 87, 0.3);
     border-left: 0;
   }
 
   .hero__areas {
     max-width: 33rem;
-    font-size: clamp(0.8rem, 3.4vw, 0.9rem);
+    font-size: clamp(0.85rem, 3.5vw, 0.95rem);
     line-height: 1.5;
   }
 
   .hero__actions {
-    gap: 0.8rem 1.75rem;
+    padding-top: clamp(1.35rem, 4.5vw, 1.65rem);
+    gap: 0.9rem 1.75rem;
+  }
+
+  .hero__actions a {
+    font-size: clamp(0.86rem, 3.5vw, 0.93rem);
   }
 
   .hero::before {
@@ -435,7 +443,7 @@ a {
   .hero__areas {
     display: grid;
     justify-items: start;
-    gap: 0.6rem;
+    gap: 0.72rem;
   }
 
   .hero__area + .hero__area::before {
@@ -446,6 +454,7 @@ a {
   .hero__actions {
     display: grid;
     justify-items: start;
+    gap: 1rem;
   }
 }
 
