@@ -486,3 +486,131 @@ a {
     text-align: left;
   }
 }
+
+.lawyer-linguist {
+  background: var(--color-paper);
+}
+
+.lawyer-linguist__inner {
+  padding-block: clamp(5rem, 10vw, 9rem);
+}
+
+.lawyer-linguist__content {
+  width: 100%;
+  max-width: var(--hero-band-max);
+  margin-inline: auto;
+}
+
+.lawyer-linguist__label {
+  margin: 0;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-rule);
+  color: var(--color-blue-deep);
+  font-size: 0.75rem;
+  font-weight: 650;
+  line-height: 1.35;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.lawyer-linguist__introduction {
+  margin-top: clamp(2.5rem, 5vw, 4.5rem);
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(21rem, 0.85fr);
+  align-items: end;
+  column-gap: clamp(2rem, 2.75vw, 3.25rem);
+}
+
+.lawyer-linguist h2 {
+  max-width: 12ch;
+  margin: 0;
+  color: var(--color-blue-deep);
+  font-family: var(--font-display);
+  font-size: clamp(3rem, 5vw, 4.75rem);
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+
+.lawyer-linguist__introduction > p {
+  max-width: 40ch;
+  margin: 0;
+  color: var(--color-ink);
+  font-size: clamp(1.05rem, 1.35vw, 1.2rem);
+  line-height: 1.65;
+  text-wrap: pretty;
+}
+
+.lawyer-linguist__pillars {
+  margin-top: clamp(4rem, 8vw, 7rem);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  column-gap: clamp(1.75rem, 3vw, 3.5rem);
+}
+
+.lawyer-linguist__pillar {
+  min-width: 0;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--color-rule);
+}
+
+.lawyer-linguist__pillar h3 {
+  margin: 0;
+  color: var(--color-blue-deep);
+  font-size: clamp(0.85rem, 1vw, 0.95rem);
+  font-weight: 650;
+  line-height: 1.4;
+  letter-spacing: 0.045em;
+}
+
+.lawyer-linguist__pillar p {
+  max-width: 34ch;
+  margin: 1rem 0 0;
+  color: var(--color-muted);
+  font-size: clamp(0.95rem, 1.05vw, 1.02rem);
+  line-height: 1.65;
+  text-wrap: pretty;
+}
+
+@media (max-width: 48rem) {
+  .lawyer-linguist__inner {
+    padding-block: clamp(4rem, 15vw, 6rem);
+  }
+
+  .lawyer-linguist__introduction {
+    margin-top: clamp(2.25rem, 8vw, 3.5rem);
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: clamp(1.75rem, 6vw, 2.5rem);
+  }
+
+  .lawyer-linguist h2 {
+    max-width: 11ch;
+    font-size: clamp(2.5rem, 11vw, 3.75rem);
+  }
+
+  .lawyer-linguist__introduction > p {
+    max-width: 35ch;
+    font-size: clamp(1rem, 4vw, 1.12rem);
+    line-height: 1.6;
+  }
+
+  .lawyer-linguist__pillars {
+    margin-top: clamp(3.25rem, 12vw, 5rem);
+    grid-template-columns: minmax(0, 1fr);
+    column-gap: 0;
+  }
+
+  .lawyer-linguist__pillar {
+    padding-block: 1.35rem;
+  }
+
+  .lawyer-linguist__pillar:last-child {
+    padding-bottom: 0;
+  }
+
+  .lawyer-linguist__pillar p {
+    margin-top: 0.75rem;
+  }
+}
