@@ -62,14 +62,16 @@ a {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 3rem;
+  gap: clamp(3.25rem, 4vw, 4.5rem);
 }
 
 .site-brand {
   flex: 0 1 auto;
+  max-width: 16ch;
   font-family: var(--font-display);
-  font-size: clamp(1.05rem, 1.4vw, 1.3rem);
-  line-height: 1.2;
+  font-size: clamp(1.2rem, 1.6vw, 1.48rem);
+  font-weight: 500;
+  line-height: 1.08;
   letter-spacing: -0.012em;
   text-decoration: none;
 }
@@ -369,8 +371,7 @@ a {
   }
 
   .site-brand {
-    max-width: 16ch;
-    font-size: clamp(0.98rem, 4.2vw, 1.12rem);
+    font-size: clamp(1.1rem, 4.75vw, 1.27rem);
   }
 
   .hero__inner {
