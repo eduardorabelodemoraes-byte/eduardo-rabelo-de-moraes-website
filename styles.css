@@ -13,6 +13,7 @@
   --color-focus: #0c5879;
 
   --page-max: 90rem;
+  --hero-band-max: 76rem;
   --page-gutter: clamp(1.5rem, 4vw, 4.5rem);
   --header-height: 6rem;
   --section-space: clamp(3.5rem, 8vw, 7.5rem);
@@ -189,12 +190,15 @@ a {
 }
 
 .hero__content {
-  align-self: end;
-  margin-top: clamp(3.75rem, 9vh, 7.5rem);
+  align-self: start;
+  width: 100%;
+  max-width: var(--hero-band-max);
+  margin: clamp(2.5rem, 4.5vh, 4rem) auto 0;
   display: grid;
-  grid-template-columns: minmax(0, 58fr) minmax(21rem, 42fr);
+  grid-template-columns: minmax(0, 1.15fr) minmax(21rem, 0.85fr);
   align-items: start;
-  gap: clamp(2.5rem, 4vw, 4.5rem);
+  column-gap: clamp(2rem, 2.75vw, 3.25rem);
+  row-gap: 0;
 }
 
 .hero__lead,
@@ -351,11 +355,6 @@ a {
   .mobile-nav a {
     display: block;
     padding-block: 0.9rem;
-  }
-
-  .hero__content {
-    grid-template-columns: minmax(0, 58fr) minmax(19rem, 42fr);
-    gap: clamp(2rem, 4vw, 3rem);
   }
 
   .hero h1 {
