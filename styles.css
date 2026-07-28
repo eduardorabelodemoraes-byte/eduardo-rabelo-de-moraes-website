@@ -526,7 +526,7 @@ a {
   margin: 0;
   color: var(--color-blue-deep);
   font-family: var(--font-display);
-  font-size: clamp(3rem, 5vw, 4.75rem);
+  font-size: clamp(2.7rem, 4.5vw, 4.3rem);
   font-weight: 400;
   line-height: 1;
   letter-spacing: -0.035em;
@@ -547,12 +547,12 @@ a {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   column-gap: clamp(1.75rem, 3vw, 3.5rem);
+  border-top: 1px solid var(--color-rule);
 }
 
 .lawyer-linguist__pillar {
   min-width: 0;
-  padding-top: 1.25rem;
-  border-top: 1px solid var(--color-rule);
+  padding-top: 1.1rem;
 }
 
 .lawyer-linguist__pillar h3 {
@@ -566,7 +566,7 @@ a {
 
 .lawyer-linguist__pillar p {
   max-width: 34ch;
-  margin: 1rem 0 0;
+  margin: 0.7rem 0 0;
   color: var(--color-muted);
   font-size: clamp(0.95rem, 1.05vw, 1.02rem);
   line-height: 1.65;
@@ -587,7 +587,7 @@ a {
 
   .lawyer-linguist h2 {
     max-width: 11ch;
-    font-size: clamp(2.5rem, 11vw, 3.75rem);
+    font-size: clamp(2.25rem, 10vw, 3.4rem);
   }
 
   .lawyer-linguist__introduction > p {
@@ -603,7 +603,11 @@ a {
   }
 
   .lawyer-linguist__pillar {
-    padding-block: 1.35rem;
+    padding-block: 1.15rem;
+  }
+
+  .lawyer-linguist__pillar + .lawyer-linguist__pillar {
+    border-top: 1px solid var(--color-rule);
   }
 
   .lawyer-linguist__pillar:last-child {
@@ -611,6 +615,6 @@ a {
   }
 
   .lawyer-linguist__pillar p {
-    margin-top: 0.75rem;
+    margin-top: 0.65rem;
   }
 }
