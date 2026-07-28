@@ -906,3 +906,124 @@ a {
     margin-top: 0.75rem;
   }
 }
+
+.about {
+  background: var(--color-surface);
+}
+
+.about__inner {
+  padding-block: clamp(5rem, 10vw, 9rem);
+}
+
+.about__content {
+  width: 100%;
+  max-width: var(--hero-band-max);
+  margin-inline: auto;
+}
+
+.about__label {
+  margin: 0;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-rule);
+  color: var(--color-blue-deep);
+  font-size: 0.75rem;
+  font-weight: 650;
+  line-height: 1.35;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.about__composition {
+  margin-top: clamp(2.5rem, 5vw, 4.5rem);
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(21rem, 0.85fr);
+  align-items: start;
+  column-gap: clamp(2rem, 2.75vw, 3.25rem);
+}
+
+.about h2 {
+  max-width: 14ch;
+  margin: 0;
+  color: var(--color-blue-deep);
+  font-family: var(--font-display);
+  font-size: clamp(2.7rem, 4.5vw, 4.3rem);
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+
+.about__body {
+  max-width: 46ch;
+}
+
+.about__body p {
+  margin: 0;
+  color: var(--color-ink);
+  font-size: clamp(1.02rem, 1.25vw, 1.15rem);
+  line-height: 1.7;
+  text-wrap: pretty;
+}
+
+.about__body p + p {
+  margin-top: clamp(1.5rem, 3vw, 2.25rem);
+}
+
+.about__principle {
+  margin-top: clamp(3.5rem, 7vw, 6rem);
+  padding-top: 1.25rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(21rem, 0.85fr);
+  column-gap: clamp(2rem, 2.75vw, 3.25rem);
+  border-top: 1px solid var(--color-rule);
+}
+
+.about__principle p {
+  grid-column: 2;
+  margin: 0;
+  color: var(--color-blue-deep);
+  font-family: var(--font-display);
+  font-size: clamp(1.4rem, 2vw, 1.75rem);
+  font-weight: 400;
+  line-height: 1.25;
+  letter-spacing: -0.018em;
+  text-wrap: balance;
+}
+
+@media (max-width: 48rem) {
+  .about__inner {
+    padding-block: clamp(4rem, 15vw, 6rem);
+  }
+
+  .about__composition {
+    margin-top: clamp(2.25rem, 8vw, 3.5rem);
+    grid-template-columns: minmax(0, 1fr);
+    gap: clamp(2rem, 7vw, 3rem);
+  }
+
+  .about h2 {
+    max-width: 12ch;
+    font-size: clamp(2.25rem, 10vw, 3.4rem);
+  }
+
+  .about__body {
+    max-width: 35ch;
+  }
+
+  .about__body p {
+    font-size: clamp(1rem, 4vw, 1.1rem);
+    line-height: 1.65;
+  }
+
+  .about__principle {
+    margin-top: clamp(3rem, 12vw, 4.75rem);
+    grid-template-columns: minmax(0, 1fr);
+    column-gap: 0;
+  }
+
+  .about__principle p {
+    grid-column: 1;
+    max-width: 22ch;
+    font-size: clamp(1.3rem, 6vw, 1.6rem);
+  }
+}
