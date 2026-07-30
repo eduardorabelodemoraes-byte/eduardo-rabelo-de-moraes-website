@@ -1197,3 +1197,295 @@ a {
     overflow-wrap: anywhere;
   }
 }
+
+.expertise__link {
+  color: inherit;
+  text-decoration-color: transparent;
+  text-decoration-line: underline;
+  text-decoration-thickness: 0.06em;
+  text-underline-offset: 0.2em;
+}
+
+.expertise__link:hover {
+  color: var(--color-blue);
+  text-decoration-color: currentColor;
+}
+
+.expertise__link:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 4px;
+}
+
+html.game-transition-running {
+  overflow: hidden;
+}
+
+html.game-transition-running body > :not(.game-transition) {
+  pointer-events: none;
+}
+
+.game-transition {
+  --game-transition-x: 50vw;
+  --game-transition-y: 50vh;
+  --game-transition-duration: 2100ms;
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  overflow: hidden;
+  background: transparent;
+  pointer-events: auto;
+  isolation: isolate;
+}
+
+.game-transition__membrane,
+.game-transition__wash,
+.game-transition__black {
+  position: absolute;
+  display: block;
+  pointer-events: none;
+}
+
+.game-transition__membrane {
+  z-index: 1;
+  top: var(--game-transition-y);
+  left: var(--game-transition-x);
+  width: 260vmax;
+  height: 220vmax;
+  border-radius: 47% 53% 46% 54% / 52% 45% 55% 48%;
+  background:
+    radial-gradient(
+      ellipse at 45% 42%,
+      rgba(255, 255, 255, 0.94) 0%,
+      rgba(231, 244, 247, 0.8) 26%,
+      rgba(196, 226, 235, 0.55) 49%,
+      rgba(244, 241, 234, 0.18) 73%,
+      rgba(244, 241, 234, 0) 100%
+    ),
+    linear-gradient(
+      126deg,
+      rgba(255, 255, 255, 0.54),
+      rgba(213, 235, 241, 0.34) 48%,
+      rgba(244, 241, 234, 0.08)
+    );
+  opacity: 0;
+  filter: blur(10px);
+  transform: translate(-50%, -50%) scale(0.002) rotate(-3deg);
+  transform-origin: center;
+  will-change: transform, opacity;
+}
+
+.game-transition__wash {
+  z-index: 2;
+  inset: 0;
+  background:
+    linear-gradient(110deg, rgba(238, 248, 250, 0.14), rgba(255, 255, 255, 0.68)),
+    rgba(220, 238, 243, 0.2);
+  opacity: 0;
+  will-change: opacity;
+}
+
+.game-transition__black {
+  z-index: 3;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+  will-change: opacity;
+}
+
+html.game-transition-crossing body > .site-header,
+html.game-transition-crossing body > main,
+html.game-transition-crossing body > .site-footer {
+  animation: home-liquid-dissolve var(--game-transition-duration) ease-in forwards;
+}
+
+.game-transition.is-crossing .game-transition__membrane {
+  animation: membrane-expand var(--game-transition-duration) cubic-bezier(0.3, 0, 0.12, 1) forwards;
+}
+
+.game-transition.is-crossing .game-transition__wash {
+  animation: luminous-wash var(--game-transition-duration) ease-in forwards;
+}
+
+.game-transition.is-crossing .game-transition__black {
+  animation: resolve-to-black var(--game-transition-duration) ease-in forwards;
+}
+
+html.game-transition-black body > .site-header,
+html.game-transition-black body > main,
+html.game-transition-black body > .site-footer {
+  opacity: 0;
+}
+
+.game-transition.is-black {
+  background: #000;
+}
+
+.game-transition.is-black .game-transition__black {
+  opacity: 1;
+}
+
+@keyframes home-liquid-dissolve {
+  0%,
+  10% {
+    opacity: 1;
+    filter: blur(0) brightness(1) saturate(1);
+    transform: scale(1);
+  }
+
+  62% {
+    opacity: 0.84;
+    filter: blur(1.5px) brightness(1.08) saturate(0.88);
+    transform: scale(1.002);
+  }
+
+  82% {
+    opacity: 0.42;
+    filter: blur(3px) brightness(1.22) saturate(0.72);
+  }
+
+  100% {
+    opacity: 0;
+    filter: blur(5px) brightness(1.42) saturate(0.55);
+    transform: scale(1.006);
+  }
+}
+
+@keyframes membrane-expand {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.002) rotate(-3deg);
+  }
+
+  14% {
+    opacity: 0.7;
+  }
+
+  72% {
+    opacity: 0.94;
+    transform: translate(-50%, -50%) scale(0.86) rotate(-0.5deg);
+  }
+
+  100% {
+    opacity: 0.24;
+    transform: translate(-50%, -50%) scale(1.08) rotate(0deg);
+  }
+}
+
+@keyframes luminous-wash {
+  0%,
+  22% {
+    opacity: 0;
+  }
+
+  70% {
+    opacity: 0.38;
+  }
+
+  88% {
+    opacity: 0.82;
+  }
+
+  100% {
+    opacity: 0.2;
+  }
+}
+
+@keyframes resolve-to-black {
+  0%,
+  74% {
+    opacity: 0;
+  }
+
+  100% {
+    opacity: 1;
+  }
+}
+
+html.game-transition-reduced.game-transition-crossing body > .site-header,
+html.game-transition-reduced.game-transition-crossing body > main,
+html.game-transition-reduced.game-transition-crossing body > .site-footer {
+  animation-name: home-reduced-dissolve;
+}
+
+.game-transition--reduced.is-crossing .game-transition__membrane {
+  animation-name: membrane-reduced;
+}
+
+.game-transition--reduced.is-crossing .game-transition__wash {
+  animation-name: wash-reduced;
+}
+
+.game-transition--reduced.is-crossing .game-transition__black {
+  animation-name: black-reduced;
+}
+
+@keyframes home-reduced-dissolve {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes membrane-reduced {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.98);
+  }
+
+  42% {
+    opacity: 0.62;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes wash-reduced {
+  0% {
+    opacity: 0;
+  }
+
+  45% {
+    opacity: 0.48;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes black-reduced {
+  0%,
+  48% {
+    opacity: 0;
+  }
+
+  100% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.game-transition-crossing body > .site-header,
+  html.game-transition-crossing body > main,
+  html.game-transition-crossing body > .site-footer {
+    animation-name: home-reduced-dissolve;
+  }
+
+  .game-transition.is-crossing .game-transition__membrane {
+    animation-name: membrane-reduced;
+  }
+
+  .game-transition.is-crossing .game-transition__wash {
+    animation-name: wash-reduced;
+  }
+
+  .game-transition.is-crossing .game-transition__black {
+    animation-name: black-reduced;
+  }
+}
