@@ -279,10 +279,24 @@ a {
   }
 
   .experience-return {
-    top: 0.75rem;
-    right: var(--page-gutter);
+    --experience-return-top: calc(env(safe-area-inset-top, 0px) + 0.75rem);
+    --experience-return-right: calc(env(safe-area-inset-right, 0px) + var(--page-gutter));
+    top: var(--experience-return-top);
+    right: var(--experience-return-right);
     padding-block: 0.65rem;
     opacity: 0.88;
+  }
+
+  .experience-page::before {
+    content: "";
+    position: fixed;
+    z-index: 9;
+    top: 0;
+    right: 0;
+    left: 0;
+    height: calc(env(safe-area-inset-top, 0px) + 4rem);
+    background: var(--color-black);
+    pointer-events: none;
   }
 
   .narrative-section {
