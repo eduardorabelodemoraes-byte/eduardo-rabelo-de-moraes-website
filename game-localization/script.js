@@ -9,6 +9,7 @@
     full: 750,
     lightweight: 600,
     reduced: 300,
+    essential: 300,
     direct: 800
   });
   const root = document.documentElement;
@@ -16,7 +17,7 @@
 
   function normalizeMode(marker) {
     if (marker.version === CURRENT_MARKER_VERSION) {
-      return ["full", "lightweight", "reduced"].includes(marker.mode)
+      return ["full", "lightweight", "reduced", "essential"].includes(marker.mode)
         ? marker.mode
         : null;
     }

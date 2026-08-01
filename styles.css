@@ -1230,18 +1230,16 @@ html.threshold-running body > :not(.threshold-system) {
 }
 
 .threshold-system {
-  --threshold-base-opacity: 1;
-  --threshold-primary-opacity: 0;
-  --threshold-secondary-opacity: 0;
-  --threshold-language-opacity: 0;
-  --threshold-black-opacity: 0;
-  --threshold-density-brightness: 1;
+  --threshold-origin-presence: 0;
+  --threshold-language-presence: 0;
+  --threshold-conduction-presence: 0;
+  --threshold-material-presence: 0;
+  --threshold-origin-brightness: 1;
+  --threshold-language-brightness: 1;
+  --threshold-rule-brightness: 1;
+  --threshold-material-brightness: 1;
   --threshold-density-contrast: 1;
-  --threshold-language-reach-x: 18vmax;
-  --threshold-language-reach-y: 13vmax;
-  --threshold-language-alt-reach-x: 12vmax;
-  --threshold-language-alt-reach-y: 12vmax;
-  --threshold-conduction-opacity: 0;
+  --threshold-black-opacity: 0;
   position: fixed;
   z-index: 2147483000;
   inset: 0;
@@ -1264,12 +1262,43 @@ html.threshold-running body > :not(.threshold-system) {
   overflow: hidden;
 }
 
+.threshold-paint-probe {
+  position: absolute;
+  z-index: 0;
+  right: 2px;
+  bottom: 2px;
+  width: 12px;
+  height: 12px;
+  overflow: hidden;
+  opacity: 0.001;
+  background:
+    linear-gradient(37deg, #fff 0 38%, #000 38% 62%, #fff 62% 100%);
+  filter: var(--threshold-layer-filter);
+  -webkit-mask-image: var(--threshold-layer-mask);
+  mask-image: var(--threshold-layer-mask);
+  contain: strict;
+}
+
+.threshold-optical-budget {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  left: 0;
+  overflow: hidden;
+  transform-origin: top left;
+  will-change: transform;
+  contain: strict;
+}
+
 .threshold-optical {
   position: absolute;
   z-index: 1;
-  inset: 0;
+  top: 0;
+  left: 0;
   overflow: hidden;
-  background: #000;
+  background: transparent;
+  transform-origin: top left;
+  will-change: transform;
   contain: strict;
 }
 
@@ -1288,195 +1317,138 @@ html.threshold-running body > :not(.threshold-system) {
   contain: layout paint style;
 }
 
-.threshold-optical__layer--base {
-  z-index: 1;
-  background: var(--threshold-optical-background, var(--color-paper));
-  opacity: var(--threshold-base-opacity);
+.threshold-optical__fragment > [data-threshold-optical-clone] {
+  transform-origin: center;
+  will-change: transform;
 }
 
-.threshold-optical__layer--primary {
-  z-index: 2;
-  opacity: var(--threshold-primary-opacity);
-  filter:
-    var(--threshold-layer-filter)
-    brightness(var(--threshold-density-brightness))
-    contrast(var(--threshold-density-contrast));
-  -webkit-mask-image:
-    radial-gradient(
-      ellipse 78% 52% at var(--threshold-language-x) var(--threshold-language-y),
-      #000 0%,
-      rgba(0, 0, 0, 0.92) 38%,
-      rgba(0, 0, 0, 0.34) 72%,
-      transparent 100%
-    ),
-    radial-gradient(
-      ellipse 56% 82% at var(--threshold-field-x) var(--threshold-field-y),
-      rgba(0, 0, 0, 0.96) 0%,
-      rgba(0, 0, 0, 0.62) 55%,
-      transparent 100%
-    ),
-    linear-gradient(
-      127deg,
-      transparent 3%,
-      rgba(0, 0, 0, 0.22) 24%,
-      rgba(0, 0, 0, 0.88) 49%,
-      rgba(0, 0, 0, 0.42) 76%,
-      transparent 98%
-    );
-  mask-image:
-    radial-gradient(
-      ellipse 78% 52% at var(--threshold-language-x) var(--threshold-language-y),
-      #000 0%,
-      rgba(0, 0, 0, 0.92) 38%,
-      rgba(0, 0, 0, 0.34) 72%,
-      transparent 100%
-    ),
-    radial-gradient(
-      ellipse 56% 82% at var(--threshold-field-x) var(--threshold-field-y),
-      rgba(0, 0, 0, 0.96) 0%,
-      rgba(0, 0, 0, 0.62) 55%,
-      transparent 100%
-    ),
-    linear-gradient(
-      127deg,
-      transparent 3%,
-      rgba(0, 0, 0, 0.22) 24%,
-      rgba(0, 0, 0, 0.88) 49%,
-      rgba(0, 0, 0, 0.42) 76%,
-      transparent 98%
-    );
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-}
-
-.threshold-optical__layer--secondary {
-  z-index: 3;
-  opacity: var(--threshold-secondary-opacity);
-  filter:
-    var(--threshold-layer-filter)
-    brightness(var(--threshold-density-brightness))
-    contrast(var(--threshold-density-contrast));
-  -webkit-mask-image:
-    radial-gradient(
-      ellipse 68% 46% at var(--threshold-field-alt-x) var(--threshold-field-alt-y),
-      rgba(0, 0, 0, 0.94) 0%,
-      rgba(0, 0, 0, 0.54) 58%,
-      transparent 100%
-    ),
-    linear-gradient(
-      38deg,
-      transparent 2%,
-      rgba(0, 0, 0, 0.46) 29%,
-      rgba(0, 0, 0, 0.86) 57%,
-      rgba(0, 0, 0, 0.18) 88%,
-      transparent 100%
-    );
-  mask-image:
-    radial-gradient(
-      ellipse 68% 46% at var(--threshold-field-alt-x) var(--threshold-field-alt-y),
-      rgba(0, 0, 0, 0.94) 0%,
-      rgba(0, 0, 0, 0.54) 58%,
-      transparent 100%
-    ),
-    linear-gradient(
-      38deg,
-      transparent 2%,
-      rgba(0, 0, 0, 0.46) 29%,
-      rgba(0, 0, 0, 0.86) 57%,
-      rgba(0, 0, 0, 0.18) 88%,
-      transparent 100%
-    );
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
+.threshold-optical__layer--origin {
+  z-index: 7;
+  opacity: var(--threshold-origin-presence);
 }
 
 .threshold-optical__layer--language {
-  z-index: 4;
-  opacity: var(--threshold-language-opacity);
+  z-index: 6;
+  opacity: var(--threshold-language-presence);
   filter:
-    var(--threshold-layer-filter)
-    brightness(1.16)
-    contrast(1.035);
-  -webkit-mask-image:
-    radial-gradient(
-      ellipse var(--threshold-language-reach-x) var(--threshold-language-reach-y)
-        at var(--threshold-language-x) var(--threshold-language-y),
-      #000 0%,
-      rgba(0, 0, 0, 0.88) 54%,
-      transparent 100%
-    ),
-    radial-gradient(
-      ellipse var(--threshold-language-alt-reach-x) var(--threshold-language-alt-reach-y)
-        at var(--threshold-field-x) var(--threshold-field-y),
-      rgb(0 0 0 / var(--threshold-conduction-opacity)) 0%,
-      transparent 100%
-    ),
-    linear-gradient(
-      143deg,
-      transparent 4%,
-      rgb(0 0 0 / var(--threshold-conduction-opacity)) 47%,
-      transparent 96%
-    );
-  mask-image:
-    radial-gradient(
-      ellipse var(--threshold-language-reach-x) var(--threshold-language-reach-y)
-        at var(--threshold-language-x) var(--threshold-language-y),
-      #000 0%,
-      rgba(0, 0, 0, 0.88) 54%,
-      transparent 100%
-    ),
-    radial-gradient(
-      ellipse var(--threshold-language-alt-reach-x) var(--threshold-language-alt-reach-y)
-        at var(--threshold-field-x) var(--threshold-field-y),
-      rgb(0 0 0 / var(--threshold-conduction-opacity)) 0%,
-      transparent 100%
-    ),
-    linear-gradient(
-      143deg,
-      transparent 4%,
-      rgb(0 0 0 / var(--threshold-conduction-opacity)) 47%,
-      transparent 96%
-    );
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
+    brightness(var(--threshold-language-brightness))
+    contrast(1.025);
 }
 
+.threshold-optical__layer--conduction {
+  z-index: 4;
+  opacity: var(--threshold-conduction-presence);
+  filter:
+    brightness(var(--threshold-rule-brightness))
+    contrast(var(--threshold-density-contrast));
+}
+
+.threshold-optical__layer--material {
+  z-index: 3;
+  opacity: var(--threshold-material-presence);
+  background: var(--threshold-optical-background, var(--color-paper));
+  filter:
+    brightness(var(--threshold-material-brightness))
+    contrast(var(--threshold-density-contrast));
+}
+
+.threshold-optical__rules {
+  position: absolute;
+  z-index: 5;
+  inset: 0;
+  overflow: hidden;
+  opacity: var(--threshold-conduction-presence);
+  filter:
+    brightness(var(--threshold-rule-brightness))
+    contrast(1.02);
+  contain: strict;
+}
+
+.threshold-optical__rule {
+  position: absolute;
+  display: block;
+  min-width: 1px;
+  min-height: 1px;
+  transform-origin: center;
+  will-change: transform;
+}
+
+.threshold-optical__layer--origin .threshold-optical__fragment,
+.threshold-optical__layer--origin [data-threshold-optical-clone],
+.threshold-optical__layer--origin [data-threshold-optical-clone] *,
 .threshold-optical__layer--language .threshold-optical__fragment,
 .threshold-optical__layer--language [data-threshold-optical-clone],
 .threshold-optical__layer--language [data-threshold-optical-clone] * {
   visibility: hidden !important;
 }
 
+.threshold-optical__layer--origin [data-threshold-language],
+.threshold-optical__layer--origin [data-threshold-language] *,
 .threshold-optical__layer--language [data-threshold-language],
 .threshold-optical__layer--language [data-threshold-language] * {
   visibility: visible !important;
 }
 
-.threshold-system[data-mask="unavailable"] .threshold-optical__layer--primary,
-.threshold-system[data-mask="unavailable"] .threshold-optical__layer--secondary,
-.threshold-system[data-mask="unavailable"] .threshold-optical__layer--language {
-  -webkit-mask-image: none;
-  mask-image: none;
+.threshold-system[data-optics="svg-pending"] .threshold-optical__layer--origin,
+.threshold-system[data-optics="svg"] .threshold-optical__layer--origin {
+  filter:
+    var(--threshold-layer-filter)
+    brightness(var(--threshold-origin-brightness))
+    contrast(1.02);
+  -webkit-mask-image: var(--threshold-layer-mask);
+  mask-image: var(--threshold-layer-mask);
 }
 
-.threshold-system[data-mode="reduced"] .threshold-optical__layer--primary {
-  -webkit-mask-image: linear-gradient(
-    132deg,
-    rgba(0, 0, 0, 0.74),
-    rgba(0, 0, 0, 0.96) 54%,
-    rgba(0, 0, 0, 0.68)
-  );
-  mask-image: linear-gradient(
-    132deg,
-    rgba(0, 0, 0, 0.74),
-    rgba(0, 0, 0, 0.96) 54%,
-    rgba(0, 0, 0, 0.68)
-  );
+.threshold-system[data-optics="svg-pending"] .threshold-optical__layer--language,
+.threshold-system[data-optics="svg"] .threshold-optical__layer--language {
+  filter:
+    var(--threshold-layer-filter)
+    brightness(var(--threshold-language-brightness))
+    contrast(1.025);
+}
+
+.threshold-system[data-optics="svg-pending"] .threshold-optical__layer--conduction,
+.threshold-system[data-optics="svg"] .threshold-optical__layer--conduction {
+  filter:
+    var(--threshold-layer-filter)
+    brightness(var(--threshold-rule-brightness))
+    contrast(var(--threshold-density-contrast));
+  -webkit-mask-image: var(--threshold-layer-mask);
+  mask-image: var(--threshold-layer-mask);
+}
+
+.threshold-system[data-optics="svg-pending"] .threshold-optical__layer--material,
+.threshold-system[data-optics="svg"] .threshold-optical__layer--material {
+  filter:
+    var(--threshold-layer-filter)
+    brightness(var(--threshold-material-brightness))
+    contrast(var(--threshold-density-contrast));
+}
+
+.threshold-system[data-optics="dom"] .threshold-optical__layer--origin {
+  clip-path: var(--threshold-origin-clip);
+  filter:
+    brightness(var(--threshold-origin-brightness))
+    contrast(1.02);
+}
+
+.threshold-system[data-optics="dom"] .threshold-optical__layer--conduction {
+  display: none;
+}
+
+.threshold-system[data-mode="reduced"] .threshold-optical__layer--language {
+  filter:
+    brightness(var(--threshold-language-brightness))
+    contrast(1.012);
+}
+
+.threshold-system[data-mode="reduced"] .threshold-optical__rules {
+  filter: brightness(var(--threshold-rule-brightness));
 }
 
 .threshold-black-guard {
   position: absolute;
-  z-index: 10;
+  z-index: 20;
   inset: 0;
   background: #000;
   opacity: var(--threshold-black-opacity);
