@@ -18,9 +18,29 @@
     .js [data-prologue-response] {
       opacity: 0;
     }
+
+    .js.experience-failsafe [data-prologue-opening],
+    .js.experience-failsafe [data-prologue-response] {
+      opacity: 1;
+    }
+
+    .js.experience-failsafe.experience-started [data-prologue-opening],
+    .js.experience-failsafe.experience-started [data-prologue-response] {
+      animation: none;
+      opacity: 1;
+    }
   </style>
   <script>
-    document.documentElement.classList.add("js");
+    (() => {
+      const root = document.documentElement;
+      root.classList.add("js");
+
+      window.setTimeout(() => {
+        if (!root.classList.contains("experience-started")) {
+          root.classList.add("experience-failsafe");
+        }
+      }, 2200);
+    })();
   </script>
   <link rel="stylesheet" href="styles.css">
   <script src="script.js" defer></script>

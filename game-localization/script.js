@@ -2,11 +2,31 @@
   "use strict";
 
   const STORAGE_KEY = "gameLocalizationEntry";
+  const CURRENT_MARKER_VERSION = 2;
+  const LEGACY_MARKER_VERSION = 1;
   const MAX_MARKER_AGE = 10000;
-  const DEFAULT_BLACK_HOLD = 800;
-  const REDUCED_BLACK_HOLD = 300;
+  const BLACK_HOLD = Object.freeze({
+    full: 750,
+    lightweight: 600,
+    reduced: 300,
+    direct: 800
+  });
   const root = document.documentElement;
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  function normalizeMode(marker) {
+    if (marker.version === CURRENT_MARKER_VERSION) {
+      return ["full", "lightweight", "reduced"].includes(marker.mode)
+        ? marker.mode
+        : null;
+    }
+
+    if (marker.version === LEGACY_MARKER_VERSION) {
+      return marker.motion === "reduced" ? "reduced" : "full";
+    }
+
+    return null;
+  }
 
   function readEntryMarker() {
     try {
@@ -19,18 +39,19 @@
       window.sessionStorage.removeItem(STORAGE_KEY);
       const marker = JSON.parse(rawMarker);
       const markerAge = Date.now() - marker.blackAt;
+      const mode = normalizeMode(marker);
 
       if (
-        marker.version !== 1 ||
         marker.source !== "home" ||
         !Number.isFinite(marker.blackAt) ||
         markerAge < 0 ||
-        markerAge > MAX_MARKER_AGE
+        markerAge > MAX_MARKER_AGE ||
+        !mode
       ) {
         return null;
       }
 
-      return marker;
+      return { blackAt: marker.blackAt, mode };
     } catch {
       return null;
     }
@@ -38,8 +59,10 @@
 
   function beginPrologue() {
     const marker = readEntryMarker();
-    const reducedEntry = reduceMotion || marker?.motion === "reduced";
-    const requiredHold = reducedEntry ? REDUCED_BLACK_HOLD : DEFAULT_BLACK_HOLD;
+    const entryMode = reduceMotion ? "reduced" : marker?.mode;
+    const requiredHold = entryMode
+      ? BLACK_HOLD[entryMode]
+      : BLACK_HOLD.direct;
     const elapsedBlack = marker ? Date.now() - marker.blackAt : 0;
     const remainingHold = Math.max(0, requiredHold - elapsedBlack);
 
@@ -66,6 +89,7 @@
     });
   }
 
+  root.classList.add("experience-initialized");
   beginPrologue();
   configureExit();
 })();

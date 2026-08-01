@@ -1216,276 +1216,270 @@ a {
   outline-offset: 4px;
 }
 
-html.game-transition-running {
+html.threshold-running {
   overflow: hidden;
+  overscroll-behavior: none;
 }
 
-html.game-transition-running body > :not(.game-transition) {
+html.threshold-running body {
+  padding-right: var(--threshold-scrollbar-gap, 0);
+}
+
+html.threshold-running body > :not(.threshold-system) {
   pointer-events: none;
 }
 
-.game-transition {
-  --game-transition-x: 50vw;
-  --game-transition-y: 50vh;
-  --game-transition-duration: 2100ms;
+.threshold-system {
+  --threshold-base-opacity: 1;
+  --threshold-primary-opacity: 0;
+  --threshold-secondary-opacity: 0;
+  --threshold-language-opacity: 0;
+  --threshold-black-opacity: 0;
+  --threshold-density-brightness: 1;
+  --threshold-density-contrast: 1;
+  --threshold-language-reach-x: 18vmax;
+  --threshold-language-reach-y: 13vmax;
+  --threshold-language-alt-reach-x: 12vmax;
+  --threshold-language-alt-reach-y: 12vmax;
+  --threshold-conduction-opacity: 0;
   position: fixed;
-  z-index: 1000;
+  z-index: 2147483000;
   inset: 0;
   overflow: hidden;
   background: transparent;
-  pointer-events: auto;
-  isolation: isolate;
-}
-
-.game-transition__membrane,
-.game-transition__wash,
-.game-transition__black {
-  position: absolute;
-  display: block;
   pointer-events: none;
+  isolation: isolate;
+  contain: strict;
 }
 
-.game-transition__membrane {
+.threshold-system,
+.threshold-system * {
+  pointer-events: none !important;
+}
+
+.threshold-system__svg {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+.threshold-optical {
+  position: absolute;
   z-index: 1;
-  top: var(--game-transition-y);
-  left: var(--game-transition-x);
-  width: 260vmax;
-  height: 220vmax;
-  border-radius: 47% 53% 46% 54% / 52% 45% 55% 48%;
-  background:
+  inset: 0;
+  overflow: hidden;
+  background: #000;
+  contain: strict;
+}
+
+.threshold-optical__layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  transform: translateZ(0);
+  transform-origin: var(--threshold-origin-x) var(--threshold-origin-y);
+  will-change: filter, opacity;
+}
+
+.threshold-optical__fragment {
+  position: absolute;
+  overflow: hidden;
+  contain: layout paint style;
+}
+
+.threshold-optical__layer--base {
+  z-index: 1;
+  background: var(--threshold-optical-background, var(--color-paper));
+  opacity: var(--threshold-base-opacity);
+}
+
+.threshold-optical__layer--primary {
+  z-index: 2;
+  opacity: var(--threshold-primary-opacity);
+  filter:
+    var(--threshold-layer-filter)
+    brightness(var(--threshold-density-brightness))
+    contrast(var(--threshold-density-contrast));
+  -webkit-mask-image:
     radial-gradient(
-      ellipse at 45% 42%,
-      rgba(255, 255, 255, 0.94) 0%,
-      rgba(231, 244, 247, 0.8) 26%,
-      rgba(196, 226, 235, 0.55) 49%,
-      rgba(244, 241, 234, 0.18) 73%,
-      rgba(244, 241, 234, 0) 100%
+      ellipse 78% 52% at var(--threshold-language-x) var(--threshold-language-y),
+      #000 0%,
+      rgba(0, 0, 0, 0.92) 38%,
+      rgba(0, 0, 0, 0.34) 72%,
+      transparent 100%
+    ),
+    radial-gradient(
+      ellipse 56% 82% at var(--threshold-field-x) var(--threshold-field-y),
+      rgba(0, 0, 0, 0.96) 0%,
+      rgba(0, 0, 0, 0.62) 55%,
+      transparent 100%
     ),
     linear-gradient(
-      126deg,
-      rgba(255, 255, 255, 0.54),
-      rgba(213, 235, 241, 0.34) 48%,
-      rgba(244, 241, 234, 0.08)
+      127deg,
+      transparent 3%,
+      rgba(0, 0, 0, 0.22) 24%,
+      rgba(0, 0, 0, 0.88) 49%,
+      rgba(0, 0, 0, 0.42) 76%,
+      transparent 98%
     );
-  opacity: 0;
-  filter: blur(10px);
-  transform: translate(-50%, -50%) scale(0.002) rotate(-3deg);
-  transform-origin: center;
-  will-change: transform, opacity;
+  mask-image:
+    radial-gradient(
+      ellipse 78% 52% at var(--threshold-language-x) var(--threshold-language-y),
+      #000 0%,
+      rgba(0, 0, 0, 0.92) 38%,
+      rgba(0, 0, 0, 0.34) 72%,
+      transparent 100%
+    ),
+    radial-gradient(
+      ellipse 56% 82% at var(--threshold-field-x) var(--threshold-field-y),
+      rgba(0, 0, 0, 0.96) 0%,
+      rgba(0, 0, 0, 0.62) 55%,
+      transparent 100%
+    ),
+    linear-gradient(
+      127deg,
+      transparent 3%,
+      rgba(0, 0, 0, 0.22) 24%,
+      rgba(0, 0, 0, 0.88) 49%,
+      rgba(0, 0, 0, 0.42) 76%,
+      transparent 98%
+    );
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
 }
 
-.game-transition__wash {
-  z-index: 2;
-  inset: 0;
-  background:
-    linear-gradient(110deg, rgba(238, 248, 250, 0.14), rgba(255, 255, 255, 0.68)),
-    rgba(220, 238, 243, 0.2);
-  opacity: 0;
-  will-change: opacity;
-}
-
-.game-transition__black {
+.threshold-optical__layer--secondary {
   z-index: 3;
+  opacity: var(--threshold-secondary-opacity);
+  filter:
+    var(--threshold-layer-filter)
+    brightness(var(--threshold-density-brightness))
+    contrast(var(--threshold-density-contrast));
+  -webkit-mask-image:
+    radial-gradient(
+      ellipse 68% 46% at var(--threshold-field-alt-x) var(--threshold-field-alt-y),
+      rgba(0, 0, 0, 0.94) 0%,
+      rgba(0, 0, 0, 0.54) 58%,
+      transparent 100%
+    ),
+    linear-gradient(
+      38deg,
+      transparent 2%,
+      rgba(0, 0, 0, 0.46) 29%,
+      rgba(0, 0, 0, 0.86) 57%,
+      rgba(0, 0, 0, 0.18) 88%,
+      transparent 100%
+    );
+  mask-image:
+    radial-gradient(
+      ellipse 68% 46% at var(--threshold-field-alt-x) var(--threshold-field-alt-y),
+      rgba(0, 0, 0, 0.94) 0%,
+      rgba(0, 0, 0, 0.54) 58%,
+      transparent 100%
+    ),
+    linear-gradient(
+      38deg,
+      transparent 2%,
+      rgba(0, 0, 0, 0.46) 29%,
+      rgba(0, 0, 0, 0.86) 57%,
+      rgba(0, 0, 0, 0.18) 88%,
+      transparent 100%
+    );
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+
+.threshold-optical__layer--language {
+  z-index: 4;
+  opacity: var(--threshold-language-opacity);
+  filter:
+    var(--threshold-layer-filter)
+    brightness(1.16)
+    contrast(1.035);
+  -webkit-mask-image:
+    radial-gradient(
+      ellipse var(--threshold-language-reach-x) var(--threshold-language-reach-y)
+        at var(--threshold-language-x) var(--threshold-language-y),
+      #000 0%,
+      rgba(0, 0, 0, 0.88) 54%,
+      transparent 100%
+    ),
+    radial-gradient(
+      ellipse var(--threshold-language-alt-reach-x) var(--threshold-language-alt-reach-y)
+        at var(--threshold-field-x) var(--threshold-field-y),
+      rgb(0 0 0 / var(--threshold-conduction-opacity)) 0%,
+      transparent 100%
+    ),
+    linear-gradient(
+      143deg,
+      transparent 4%,
+      rgb(0 0 0 / var(--threshold-conduction-opacity)) 47%,
+      transparent 96%
+    );
+  mask-image:
+    radial-gradient(
+      ellipse var(--threshold-language-reach-x) var(--threshold-language-reach-y)
+        at var(--threshold-language-x) var(--threshold-language-y),
+      #000 0%,
+      rgba(0, 0, 0, 0.88) 54%,
+      transparent 100%
+    ),
+    radial-gradient(
+      ellipse var(--threshold-language-alt-reach-x) var(--threshold-language-alt-reach-y)
+        at var(--threshold-field-x) var(--threshold-field-y),
+      rgb(0 0 0 / var(--threshold-conduction-opacity)) 0%,
+      transparent 100%
+    ),
+    linear-gradient(
+      143deg,
+      transparent 4%,
+      rgb(0 0 0 / var(--threshold-conduction-opacity)) 47%,
+      transparent 96%
+    );
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+
+.threshold-optical__layer--language .threshold-optical__fragment,
+.threshold-optical__layer--language [data-threshold-optical-clone],
+.threshold-optical__layer--language [data-threshold-optical-clone] * {
+  visibility: hidden !important;
+}
+
+.threshold-optical__layer--language [data-threshold-language],
+.threshold-optical__layer--language [data-threshold-language] * {
+  visibility: visible !important;
+}
+
+.threshold-system[data-mask="unavailable"] .threshold-optical__layer--primary,
+.threshold-system[data-mask="unavailable"] .threshold-optical__layer--secondary,
+.threshold-system[data-mask="unavailable"] .threshold-optical__layer--language {
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+.threshold-system[data-mode="reduced"] .threshold-optical__layer--primary {
+  -webkit-mask-image: linear-gradient(
+    132deg,
+    rgba(0, 0, 0, 0.74),
+    rgba(0, 0, 0, 0.96) 54%,
+    rgba(0, 0, 0, 0.68)
+  );
+  mask-image: linear-gradient(
+    132deg,
+    rgba(0, 0, 0, 0.74),
+    rgba(0, 0, 0, 0.96) 54%,
+    rgba(0, 0, 0, 0.68)
+  );
+}
+
+.threshold-black-guard {
+  position: absolute;
+  z-index: 10;
   inset: 0;
   background: #000;
-  opacity: 0;
+  opacity: var(--threshold-black-opacity);
+  pointer-events: none;
   will-change: opacity;
-}
-
-html.game-transition-crossing body > .site-header,
-html.game-transition-crossing body > main,
-html.game-transition-crossing body > .site-footer {
-  animation: home-liquid-dissolve var(--game-transition-duration) ease-in forwards;
-}
-
-.game-transition.is-crossing .game-transition__membrane {
-  animation: membrane-expand var(--game-transition-duration) cubic-bezier(0.3, 0, 0.12, 1) forwards;
-}
-
-.game-transition.is-crossing .game-transition__wash {
-  animation: luminous-wash var(--game-transition-duration) ease-in forwards;
-}
-
-.game-transition.is-crossing .game-transition__black {
-  animation: resolve-to-black var(--game-transition-duration) ease-in forwards;
-}
-
-html.game-transition-black body > .site-header,
-html.game-transition-black body > main,
-html.game-transition-black body > .site-footer {
-  opacity: 0;
-}
-
-.game-transition.is-black {
-  background: #000;
-}
-
-.game-transition.is-black .game-transition__black {
-  opacity: 1;
-}
-
-@keyframes home-liquid-dissolve {
-  0%,
-  10% {
-    opacity: 1;
-    filter: blur(0) brightness(1) saturate(1);
-    transform: scale(1);
-  }
-
-  62% {
-    opacity: 0.84;
-    filter: blur(1.5px) brightness(1.08) saturate(0.88);
-    transform: scale(1.002);
-  }
-
-  82% {
-    opacity: 0.42;
-    filter: blur(3px) brightness(1.22) saturate(0.72);
-  }
-
-  100% {
-    opacity: 0;
-    filter: blur(5px) brightness(1.42) saturate(0.55);
-    transform: scale(1.006);
-  }
-}
-
-@keyframes membrane-expand {
-  0% {
-    opacity: 0;
-    transform: translate(-50%, -50%) scale(0.002) rotate(-3deg);
-  }
-
-  14% {
-    opacity: 0.7;
-  }
-
-  72% {
-    opacity: 0.94;
-    transform: translate(-50%, -50%) scale(0.86) rotate(-0.5deg);
-  }
-
-  100% {
-    opacity: 0.24;
-    transform: translate(-50%, -50%) scale(1.08) rotate(0deg);
-  }
-}
-
-@keyframes luminous-wash {
-  0%,
-  22% {
-    opacity: 0;
-  }
-
-  70% {
-    opacity: 0.38;
-  }
-
-  88% {
-    opacity: 0.82;
-  }
-
-  100% {
-    opacity: 0.2;
-  }
-}
-
-@keyframes resolve-to-black {
-  0%,
-  74% {
-    opacity: 0;
-  }
-
-  100% {
-    opacity: 1;
-  }
-}
-
-html.game-transition-reduced.game-transition-crossing body > .site-header,
-html.game-transition-reduced.game-transition-crossing body > main,
-html.game-transition-reduced.game-transition-crossing body > .site-footer {
-  animation-name: home-reduced-dissolve;
-}
-
-.game-transition--reduced.is-crossing .game-transition__membrane {
-  animation-name: membrane-reduced;
-}
-
-.game-transition--reduced.is-crossing .game-transition__wash {
-  animation-name: wash-reduced;
-}
-
-.game-transition--reduced.is-crossing .game-transition__black {
-  animation-name: black-reduced;
-}
-
-@keyframes home-reduced-dissolve {
-  from {
-    opacity: 1;
-  }
-
-  to {
-    opacity: 0;
-  }
-}
-
-@keyframes membrane-reduced {
-  0% {
-    opacity: 0;
-    transform: translate(-50%, -50%) scale(0.98);
-  }
-
-  42% {
-    opacity: 0.62;
-  }
-
-  100% {
-    opacity: 0;
-    transform: translate(-50%, -50%) scale(1);
-  }
-}
-
-@keyframes wash-reduced {
-  0% {
-    opacity: 0;
-  }
-
-  45% {
-    opacity: 0.48;
-  }
-
-  100% {
-    opacity: 0;
-  }
-}
-
-@keyframes black-reduced {
-  0%,
-  48% {
-    opacity: 0;
-  }
-
-  100% {
-    opacity: 1;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  html.game-transition-crossing body > .site-header,
-  html.game-transition-crossing body > main,
-  html.game-transition-crossing body > .site-footer {
-    animation-name: home-reduced-dissolve;
-  }
-
-  .game-transition.is-crossing .game-transition__membrane {
-    animation-name: membrane-reduced;
-  }
-
-  .game-transition.is-crossing .game-transition__wash {
-    animation-name: wash-reduced;
-  }
-
-  .game-transition.is-crossing .game-transition__black {
-    animation-name: black-reduced;
-  }
 }
