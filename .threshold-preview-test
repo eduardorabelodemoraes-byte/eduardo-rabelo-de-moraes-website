@@ -1,0 +1,4 @@
+Threshold preview pipeline test.
+Branch: threshold-crossing-dev
+Purpose: verify automatic Vercel Preview deployment.
+No production code or visible website content changed.
