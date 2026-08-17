@@ -1,0 +1,28 @@
+{
+  "rewrites": [
+    {
+      "source": "/",
+      "destination": "https://eduardo-rabelo-crossing-ratiofix.vercel.app/"
+    },
+    {
+      "source": "/styles.css",
+      "destination": "https://eduardo-rabelo-crossing-ratiofix.vercel.app/styles.css"
+    },
+    {
+      "source": "/assets/:path*",
+      "destination": "https://eduardo-rabelo-crossing-ratiofix.vercel.app/assets/:path*"
+    },
+    {
+      "source": "/game-localization",
+      "destination": "https://eduardo-rabelo-crossing-ratiofix.vercel.app/game-localization/"
+    },
+    {
+      "source": "/game-localization/:path*",
+      "destination": "https://eduardo-rabelo-crossing-ratiofix.vercel.app/game-localization/:path*"
+    },
+    {
+      "source": "/__ratiofix/script.js",
+      "destination": "https://eduardo-rabelo-crossing-ratiofix.vercel.app/script.js"
+    }
+  ]
+}
