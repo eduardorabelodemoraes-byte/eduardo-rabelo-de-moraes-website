@@ -9,6 +9,10 @@
       "destination": "https://eduardo-rabelo-crossing-ratiofix.vercel.app/styles.css"
     },
     {
+      "source": "/script.js",
+      "destination": "https://eduardo-rabelo-crossing-ratiofix.vercel.app/script.js"
+    },
+    {
       "source": "/assets/:path*",
       "destination": "https://eduardo-rabelo-crossing-ratiofix.vercel.app/assets/:path*"
     },
@@ -19,10 +23,6 @@
     {
       "source": "/game-localization/:path*",
       "destination": "https://eduardo-rabelo-crossing-ratiofix.vercel.app/game-localization/:path*"
-    },
-    {
-      "source": "/__ratiofix/script.js",
-      "destination": "https://eduardo-rabelo-crossing-ratiofix.vercel.app/script.js"
     }
   ]
 }
