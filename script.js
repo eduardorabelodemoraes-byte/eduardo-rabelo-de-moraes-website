@@ -3,7 +3,26 @@
 
   const SOURCE_URL = "/__ratiofix/script.js";
 
+  function installInvisibleStartupHandoff() {
+    const entry = document.querySelector("[data-game-localization-entry]");
+    if (!entry) return;
+
+    entry.addEventListener("click", () => {
+      // Preserve the live Home geometry when the Crossing engine locks scrolling.
+      // This compensates only for the desktop scrollbar disappearing; it does not
+      // alter the engine, its texture, shaders, timing, or visual parameters.
+      const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+      if (scrollbarWidth <= 0 || document.body.dataset.thresholdScrollbarCompensated === "true") return;
+
+      const currentPaddingRight = parseFloat(getComputedStyle(document.body).paddingRight) || 0;
+      document.body.style.paddingRight = `${currentPaddingRight + scrollbarWidth}px`;
+      document.body.dataset.thresholdScrollbarCompensated = "true";
+    }, { capture: true, passive: true });
+  }
+
   async function bootApprovedCrossing() {
+    installInvisibleStartupHandoff();
+
     const response = await fetch(SOURCE_URL, { cache: "no-store" });
     if (!response.ok) throw new Error(`Unable to load approved Crossing engine (${response.status}).`);
 
