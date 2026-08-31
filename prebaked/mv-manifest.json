@@ -1,0 +1,21 @@
+{
+  "desktop": {
+    "file": "prebaked/mv-home-desktop.png",
+    "cssWidth": 1366,
+    "cssHeight": 800,
+    "dpr": 1,
+    "scrollY": 0,
+    "capturedFrom": "Production Integration — Phase 1C, isolated capture tooling (tools/home-prebake-capture/capture-home-prebake.js), served read-only from the real repo's /index.html, canvas/engine not present in the captured page.",
+    "capturedAt": "Phase 1C local integration build — real Chromium via Playwright, not the visitor's runtime. Same canonical viewport (1366x800, dpr 1) as the frozen Arrival checkpoint's own historical Home capture."
+  },
+  "mobile": {
+    "file": "prebaked/mv-home-iphone.png",
+    "cssWidth": 390,
+    "cssHeight": 844,
+    "dpr": 3,
+    "scrollY": 0,
+    "capturedFrom": "Production Integration — Phase 1C, isolated capture tooling (tools/home-prebake-capture/capture-home-prebake.js), served read-only from the real repo's /index.html, canvas/engine not present in the captured page.",
+    "capturedAt": "Phase 1C local integration build — real Chromium via Playwright, not the visitor's runtime. Same canonical viewport (390x844, dpr 3) as the frozen Arrival checkpoint's own historical Home capture."
+  },
+  "_gamesNote": "This single manifest is read by the frozen engine for BOTH TEXTURES (Home) and GAMES_TEXTURES (Games) — confirmed by source inspection (updateCoverMapping() applies unchanged to both texture sets, keyed only by 'desktop'/'mobile'). The Games textures alongside this manifest (prebaked/mv-games-desktop.png, prebaked/mv-games-iphone.png) were produced by the already-committed, unmodified Phase 1B pipeline (tools/games-prebake-validation/capture-games-prebake.js, run label 'phase1c-run'), served read-only from the real repo's /game-localization/index.html at the identical two canonical viewports, and are byte-identical to that pipeline's already-validated output (sha256 f451668596db1920ff71675cb9bfc293ca7864a52ff2df24ed1897a790fc90d4 desktop / f68d020730b2cf07c5fc57591295cbec3e58864099320cd38153df1ac241b603 mobile — matching both the Phase 1B validation report and the frozen checkpoint's own historical Games capture)."
+}
