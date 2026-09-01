@@ -1,4 +1,4 @@
-// Production Integration — Phase 1C: Home-side production adapter.
+// Production Integration — Phase 1C/1D: Home-side production adapter.
 //
 // This file is PRODUCTION-INTEGRATION ADAPTER LOGIC, not canonical engine
 // logic. It never touches C400/Crossing/Arrival calculations. Its only job
@@ -9,9 +9,12 @@
 // material-engine.js + material-harness.css + prebaked textures alongside
 // this file, and drive its own already-existing activate() entry point
 // exactly as a real user clicking "Activate" in the standalone checkpoint
-// harness would; (4) hold at Stable Games — no navigation, no cleanup,
-// no return to Home; (5) fail safe to ordinary navigation if setup does
-// not complete before the engine has taken control.
+// harness would; (4) once arrivalPhase becomes "stable" (Phase 1C's frozen
+// end state), write a narrow one-shot handoff marker and perform an
+// ordinary same-origin navigation to the real /game-localization/ document
+// — Phase 1D's only addition, and only after the state Phase 1C already
+// established, never before it; (5) fail safe to ordinary navigation if
+// setup does not complete before the engine has taken control.
 //
 // Canonical engine transport: material-engine.js and material-harness.css
 // living alongside this file are byte-identical, unmodified copies of the
@@ -21,6 +24,16 @@
 // monkey-patches those files' contents; it only decides WHEN to insert them
 // into the real document and WHAT already-existing entry point
 // (#mv-activate) to invoke on the real page's behalf.
+//
+// Phase 1D handoff: everything up through arrivalPhase === "stable" is
+// unmodified Phase 1C behavior (see beginInstrumentation()/tick() below —
+// the phase/subStage/arrivalPhase polling loop is byte-for-byte what Phase
+// 1C shipped). The only new logic is what now happens AT the stable
+// transition: previously this adapter stopped and held forever; it now
+// additionally writes HANDOFF_STORAGE_KEY (see writeHandoffMarker()) and
+// navigates via window.location.assign(link.href) — the same ordinary,
+// same-origin URL the real anchor already pointed to. No fetch-and-inject,
+// no iframe, no SPA routing, no History API trickery.
 
 (() => {
   "use strict";
@@ -30,6 +43,21 @@
   const BASE = "threshold-integration/";
   const READY_TIMEOUT_MS = 8000;
   const READY_POLL_MS = 40;
+
+  // Phase 1D handoff marker. Deliberately a NEW, separate sessionStorage key
+  // from script.js's own "gameLocalizationEntry" marker rather than an
+  // extension of it: the legacy marker's schema (mode + blackAt) exists to
+  // drive a *matching black-hold duration* on the target page, which is
+  // exactly the behavior this handoff must NOT trigger (there is no black
+  // hold to match — the visitor is already looking at the stable Games
+  // frame). Reusing that schema would either require overloading `mode`
+  // with a meaning it was never designed for, or leave a stale `blackAt`
+  // that game-localization/script.js would try to subtract a hold against.
+  // A distinct key with its own version/source identity keeps both paths
+  // fully independent and unambiguous to read.
+  const HANDOFF_STORAGE_KEY = "phase1dThresholdHandoff";
+  const HANDOFF_MARKER_VERSION = 1;
+  const HANDOFF_MARKER_SOURCE = "threshold-integration-phase1d";
 
   let gateActive = false;
   try {
@@ -65,8 +93,53 @@
     activatedAt: null, // T0 reference point: activate() invoked
     events: [], // { label, tMs (relative to activatedAt), phase, revealSubStage, arrivalPhase, arrivalOpticalMix }
     fallback: null, // set to a reason string if the fallback path was taken
-    arrivalStableAt: null
+    arrivalStableAt: null,
+    handoffMarkerWritten: null, // Phase 1D: true/false once attempted
+    navigateInitiatedAt: null // Phase 1D: tMs (relative to activatedAt) when location.assign() was called
   };
+
+  // Phase 1D: narrow, isolated, standards-based hint only. Injected once,
+  // in parallel with engine loading — never depended on for correctness.
+  // If the browser ignores or fails to honor it, the eventual ordinary
+  // navigation to link.href behaves identically either way.
+  function ensurePrefetchHint(link) {
+    if (document.getElementById("phase1d-target-prefetch")) {
+      return;
+    }
+    try {
+      const hint = document.createElement("link");
+      hint.id = "phase1d-target-prefetch";
+      hint.rel = "prefetch";
+      hint.href = link.href;
+      document.head.appendChild(hint);
+    } catch {
+      // Best-effort only — absence of this hint has no functional effect.
+    }
+  }
+
+  // Phase 1D: one-shot handoff marker, written only at the moment
+  // arrivalPhase first becomes "stable" and only immediately before the
+  // navigation that follows it (see tick() below). Consumed and deleted by
+  // game-localization/script.js on the very next document load; never read
+  // back by this document, so there is no dependency on Home surviving
+  // past the moment navigation is issued.
+  function writeHandoffMarker() {
+    const marker = {
+      version: HANDOFF_MARKER_VERSION,
+      source: HANDOFF_MARKER_SOURCE,
+      stableAt: Date.now()
+    };
+    try {
+      window.sessionStorage.setItem(HANDOFF_STORAGE_KEY, JSON.stringify(marker));
+      return true;
+    } catch {
+      // If sessionStorage is unavailable, navigation still proceeds below —
+      // the target page simply finds no marker and falls back to its own
+      // normal/direct entry behavior. This is the same fail-safe contract
+      // the legacy marker already relies on.
+      return false;
+    }
+  }
 
   function isStandardActivation(event, link) {
     // Mirrors script.js's own isStandardActivation() check (same
@@ -239,7 +312,7 @@
     });
   }
 
-  function beginInstrumentation(activatedAt) {
+  function beginInstrumentation(activatedAt, link) {
     window.__phase1cInstrumentation.activatedAt = activatedAt;
 
     let lastPhase = null;
@@ -287,13 +360,40 @@
       }
 
       if (arrivalPhase === "stable") {
-        // Hard stop per instruction: HOLD. No navigation, no automatic
-        // cleanup, no return to Home, no second transition, no redirect.
-        // This is the only place this adapter deliberately stops observing
-        // — the engine's own render loop keeps running on its own (it has
-        // no teardown path either, by design of the frozen checkpoint).
+        // Phase 1C's frozen boundary: this is the already-approved Stable
+        // Games visual state. Nothing above this line changed for Phase
+        // 1D — the phase/subStage/arrivalPhase polling and every timing
+        // value it observes is byte-identical to what Phase 1C measured.
+        //
+        // Phase 1D's entire addition starts here. The stable frame is
+        // already painted and on screen (it has been continuously visible
+        // since Arrival completed); nothing is hidden, faded, or replaced
+        // before navigation. This adapter does not stop observing — it
+        // stops polling material-engine.js (nothing more from it is
+        // relevant) and instead performs one narrow handoff:
         window.__phase1cInstrumentation.arrivalStableAt = Math.round(performance.now() - activatedAt);
-        log("HOLD at Stable Games — no navigation will occur", window.__phase1cInstrumentation);
+        log("arrivalPhase stable — beginning Phase 1D handoff", window.__phase1cInstrumentation);
+
+        const markerWritten = writeHandoffMarker();
+        window.__phase1cInstrumentation.handoffMarkerWritten = markerWritten;
+
+        // Double rAF: the "stable" transition was observed inside a rAF
+        // callback, which runs BEFORE the browser paints that frame. A
+        // same-tick navigation risks the browser swapping documents before
+        // ever compositing the fully-stable frame this handoff depends on
+        // being the visitor's last-seen source frame. Waiting for two
+        // further animation-frame callbacks guarantees a compositor paint
+        // has occurred in between (the standard "wait for paint" pattern),
+        // without adding any visible hold, animation, or synthetic delay —
+        // it costs at most ~1-2 display frames, not a perceptible pause.
+        window.requestAnimationFrame(() => {
+          window.requestAnimationFrame(() => {
+            window.__phase1cInstrumentation.navigateInitiatedAt =
+              Math.round(performance.now() - activatedAt);
+            log("navigating to target document", { href: link.href });
+            window.location.assign(link.href);
+          });
+        });
         return;
       }
 
@@ -311,6 +411,7 @@
     try {
       ensureStylesheet();
       ensureMarkup();
+      ensurePrefetchHint(link); // Phase 1D: best-effort, isolated, no dependency
       await loadEngineScript();
       await waitForEngineReady();
 
@@ -321,7 +422,7 @@
                             // point — dispatched programmatically on behalf
                             // of the real click the visitor already made on
                             // the real [data-game-localization-entry] link.
-      beginInstrumentation(activatedAt);
+      beginInstrumentation(activatedAt, link);
     } catch (error) {
       fallbackNavigate(link, error && error.message ? error.message : String(error));
     } finally {
