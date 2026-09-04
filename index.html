@@ -7,6 +7,11 @@
   <title>Eduardo Rabelo de Moraes</title>
   <link rel="stylesheet" href="styles.css">
   <script src="script.js" defer></script>
+  <!-- Integration Candidate A1: isolated, gated adapter. Complete no-op
+       unless the page is loaded with ?thresholdIntegration=1 (see
+       threshold-integration/phase-a1-integration.js). Does not modify,
+       import, or depend on script.js in any way. -->
+  <script src="threshold-integration/phase-a1-integration.js" defer></script>
 </head>
 <body>
   <header class="site-header">
