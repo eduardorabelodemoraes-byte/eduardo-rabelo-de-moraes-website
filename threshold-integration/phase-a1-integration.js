@@ -1,33 +1,78 @@
-// Integration Candidate A2 — Real Home -> approved Threshold portal -> real
-// Game Localization page.
+// Integration Candidate A3 — minimal integration-boundary refinement of
+// Candidate A2 (Real Home -> approved Threshold portal -> real Game
+// Localization page).
 //
 // COMPLETE NO-OP unless the page is loaded with ?thresholdIntegration=1.
 // Ungated behavior is byte-for-byte unchanged: no listeners, no DOM
 // injection, no network requests, nothing.
 //
 // This file never touches C400/Crossing/Arrival physics, timing, shaders or
-// choreography. It does three things only:
-//   (1) Boundary A: capture what the real, live Home viewport actually
-//       looks like right now, and hand it to the frozen engine as its Home
-//       texture, in place of the fixed prebaked PNG the isolated experiment
-//       used. Candidate A2 replaces Candidate A1's SVG-foreignObject
-//       technique (which truncated beyond a certain document height — see
-//       the isolated Boundary A proof) with html2canvas 1.4.1, vendored
-//       locally in this directory (html2canvas.min.js, no CDN/npm),
-//       using the recipe proven in that isolated test: a full-document
-//       capture with no crop/window overrides, followed by a manual
-//       Canvas 2D crop of the live visible viewport. See
-//       captureLiveHomeViewport() below.
-//   (2) Boundary B: reuse the exact, already-proven Phase 1D handoff
-//       (one-shot sessionStorage marker + ordinary same-origin navigation
-//       after the stable frame has painted) to hand off to the real
-//       /game-localization/ page.
-//   (3) Reentry: if the visitor returns to this page via the browser's
-//       Back/Forward cache (bfcache) after completing a Crossing, clear
-//       this adapter's own latches and, if the frozen engine was left
-//       active, call its existing reset() so the same Game Localization
-//       link can activate a fresh, identical Crossing again. See the
-//       pageshow listener at the bottom of this file.
+// choreography. Candidate A2 already does three things (Boundary A capture,
+// Boundary B handoff, reentry/Back correction) — see the per-function
+// comments below, all unchanged from A2. Candidate A3 adds exactly ONE
+// integration-boundary refinement on top of A2, and explicitly does NOT add
+// a second one that was investigated and found architecturally blocked:
+//
+//   (4) EXIT refinement (implemented) — prefetchGamesDocument(): during the
+//       Crossing, once the frozen engine's own materialPhase first leaves
+//       "solid" (i.e. as early as possible after activate(), while
+//       Crossing/Arrival is still running), issue a same-origin
+//       <link rel="prefetch"> hint for the real /game-localization/
+//       document. This gives the browser the entire remaining Crossing +
+//       Arrival duration (~8-9s) to warm its own HTTP cache for that
+//       document's resources, so that the ordinary same-origin navigation
+//       already used at Arrival-stable (unchanged from A2: marker + two
+//       rAFs + location.assign()) resolves to first real paint faster.
+//       Nothing about the handoff architecture, the double-rAF paint
+//       guarantee, or the final optical frame changes — this only adds a
+//       passive resource hint earlier.
+//
+//   (5) ENTRY refinement (investigated, NOT implemented — STOP condition
+//       met) — prewarming html2canvas + material-engine.js before the
+//       click, triggered by the Expertise section becoming visible, was
+//       the assigned scope. It was not implemented, on hard evidence, not
+//       assumption:
+//         - material-engine.js's initialize() uploads the Home texture
+//           into WebGL EXACTLY ONCE, synchronously, at script-execution
+//           time (see its texture-loading block), keyed on whatever
+//           window.__threshold_homeOverride happens to contain at that
+//           instant. There is no re-upload/re-initialize path anywhere in
+//           the frozen engine's public surface (__mvCrossing, __mvDebug,
+//           bindControls()) that this adapter is permitted to call.
+//         - This repository ships no prebaked Home fallback images
+//           (no prebaked/mv-home-desktop.png, no prebaked/mv-home-iphone
+//           .png) and no prebaked/mv-manifest.json. Loading
+//           material-engine.js before this adapter has already supplied
+//           window.__MV_MANIFEST_INLINE__ and window.__threshold_
+//           homeOverride does not degrade gracefully to a placeholder —
+//           it 404s loadManifest()'s fetch and/or loadImage()'s Home
+//           fetch, which throws inside initialize() before the render
+//           loop ever starts.
+//         - The only way to avoid that 404 is to run captureLiveHome
+//           Viewport() itself at Expertise-visible time, before the real
+//           click — but because texture upload cannot be redone later,
+//           whatever viewport/scroll state exists at THAT moment would be
+//           permanently baked into the WebGL texture, even if the visitor
+//           keeps scrolling before actually clicking. That would violate
+//           the explicit requirement that "the actual Home capture must
+//           still represent the visitor's real activation state" and the
+//           ENTRY SAFETY INVARIANT "same first visible material frame
+//           semantics" — a correctness regression, not a timing
+//           improvement.
+//         - Prewarming ONLY html2canvas.min.js (the one piece with no
+//           such coupling) was also evaluated and excluded: the boundary
+//           diagnosis measured html2canvas's own script-insert-to-onload
+//           cost at ~20ms, not the ~433ms dominant stall (which overlaps
+//           material-engine.js's own load/WebGL-init) — prewarming it
+//           alone would not materially improve the real click boundary,
+//           and the task's own instruction is explicit: if a prewarm does
+//           not materially help, do not keep the added complexity.
+//       Per this task's own explicit instruction ("If the frozen engine's
+//       current initialization contract makes safe prewarm impossible
+//       without modifying frozen behavior, STOP and report that rather
+//       than forcing it"), this refinement was stopped rather than forced.
+//       loadHtml2Canvas()/loadEngineScript() below remain byte-for-byte
+//       identical to A2 — both still load on the click path only.
 //
 // Known, disclosed limitation carried into this candidate (see the
 // report's KNOWN ISSUES section): the frozen engine uses ONE shared
@@ -91,7 +136,10 @@
     arrivalStableAt: null,
     handoffMarkerWritten: null,
     navigateInitiatedAt: null,
-    reentryEvents: []
+    reentryEvents: [],
+    prefetchStartedAt: null,
+    prefetchCompletedAt: null,
+    prefetchOutcome: null
   };
 
   function isStandardActivation(event, link) {
@@ -258,6 +306,37 @@
     ]).then(([desktop, mobile]) => ({ desktop, mobile }));
   }
 
+  // A3 Refinement (4) — EXIT prefetch. A passive, same-origin resource
+  // hint only: does not embed the live Games DOM, does not iframe it, does
+  // not create a second live document tree, and does not touch the A2
+  // handoff architecture (marker + double-rAF + ordinary location.assign()
+  // below, all unchanged). Idempotent by element id, so a second Crossing
+  // within the same page lifetime (reentry) is a harmless no-op rather
+  // than a duplicate hint.
+  function prefetchGamesDocument(link, activatedAt) {
+    if (document.getElementById("a1-games-prefetch")) return;
+    const startedAt = Math.round(performance.now() - activatedAt);
+    window.__a1Instrumentation.prefetchStartedAt = startedAt;
+    log("issuing games-page prefetch hint", { href: link.href, startedAt });
+
+    const hint = document.createElement("link");
+    hint.id = "a1-games-prefetch";
+    hint.rel = "prefetch";
+    hint.href = link.href;
+    // Best-effort only: <link rel="prefetch"> load/error firing is not
+    // guaranteed across browsers, and this adapter never blocks or gates
+    // navigation on it — the ordinary same-origin navigation at
+    // Arrival-stable proceeds identically whether or not this fires.
+    hint.onload = () => {
+      window.__a1Instrumentation.prefetchCompletedAt = Math.round(performance.now() - activatedAt);
+      window.__a1Instrumentation.prefetchOutcome = "loaded";
+    };
+    hint.onerror = () => {
+      window.__a1Instrumentation.prefetchOutcome = "error";
+    };
+    document.head.appendChild(hint);
+  }
+
   function loadEngineScript() {
     return new Promise((resolve, reject) => {
       const script = document.createElement("script");
@@ -324,6 +403,7 @@
   function beginInstrumentation(activatedAt, link) {
     window.__a1Instrumentation.activatedAt = activatedAt;
     let lastPhase = null, lastSubStage = null, lastArrivalPhase = null;
+    let prefetchIssued = false;
 
     function record(label) {
       const crossing = window.__mvCrossing;
@@ -348,6 +428,19 @@
       if (phase !== lastPhase) { record(`materialPhase -> ${phase}`); lastPhase = phase; }
       if (subStage !== lastSubStage) { record(`revealSubStage -> ${subStage}`); lastSubStage = subStage; }
       if (arrivalPhase !== lastArrivalPhase) { record(`arrivalPhase -> ${arrivalPhase}`); lastArrivalPhase = arrivalPhase; }
+
+      // A3 Refinement (4): fire the EXIT prefetch hint as early as
+      // possible — the first tick where materialPhase has left "solid" —
+      // to give the browser the maximum possible lead time (the entire
+      // remaining Crossing + Arrival duration) to warm its cache for the
+      // real /game-localization/ document before the unchanged A2
+      // handoff navigates to it. One-shot per activation; harmless no-op
+      // on a page that already has the hint element (see
+      // prefetchGamesDocument's own idempotency guard).
+      if (!prefetchIssued && phase && phase !== "solid") {
+        prefetchIssued = true;
+        prefetchGamesDocument(link, activatedAt);
+      }
 
       if (arrivalPhase === "stable") {
         window.__a1Instrumentation.arrivalStableAt = Math.round(performance.now() - activatedAt);
