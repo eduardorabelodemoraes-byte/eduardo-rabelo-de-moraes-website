@@ -1,0 +1,1 @@
+This branch preserves the exact approved A4 commit by ancestry reference only.
