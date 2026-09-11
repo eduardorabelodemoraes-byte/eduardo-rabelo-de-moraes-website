@@ -84,7 +84,12 @@
 (() => {
   "use strict";
 
-  const GATE_PARAM = "thresholdIntegration";
+  // launch/final-integration: production activation. The approved A4
+  // Crossing is now the default experience for every visitor on the real
+  // "Game Localization" link — no query parameter required or checked.
+  // GATE_PARAM/gateActive are gone as a runtime check but every other line
+  // below that reads `gateActive` is unchanged, so this is the only
+  // behavioral edit in this file relative to frozen A4.
   // The current production Home link carries no special data attribute
   // (Phase 1G's retire commit removed it along with everything else) — it
   // is simply `<a class="expertise__link" href="game-localization/">`. To
@@ -115,16 +120,7 @@
     mobile: { cssWidth: 390, cssHeight: 844 }
   };
 
-  let gateActive = false;
-  try {
-    gateActive = new URLSearchParams(window.location.search).get(GATE_PARAM) === "1";
-  } catch {
-    gateActive = false;
-  }
-
-  if (!gateActive) {
-    return;
-  }
+  const gateActive = true;
 
   let bootstrapping = false;
   let handedOff = false;
