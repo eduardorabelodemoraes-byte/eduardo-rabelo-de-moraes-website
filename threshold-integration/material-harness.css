@@ -257,3 +257,21 @@ html.mv-scroll-locked body {
   opacity: 1;
   pointer-events: auto;
 }
+
+/* seamless-crossing-continuous experiment addition. Boundary A/B native
+   pre/post-distortion targets — see phase-a1-integration.js's
+   a1DistortionSupported()/runPreDistortRamp()/runPostDistortResolve() for
+   the full rationale. Filter reference only: the actual scale/blur values
+   are driven imperatively (element.setAttribute) on the shared SVG
+   <feDisplacementMap>/<feGaussianBlur> primitives these filters point at,
+   not by CSS, so there is nothing here to transition or keyframe — the
+   ramp shape lives entirely in JS. Never applied under
+   prefers-reduced-motion or when CSS filter support is absent; in either
+   case these classes are simply never added. */
+.a1-predistort-target {
+  filter: url(#a1-predistort-filter);
+}
+
+.a1-postdistort-target {
+  filter: url(#a1-postdistort-filter);
+}

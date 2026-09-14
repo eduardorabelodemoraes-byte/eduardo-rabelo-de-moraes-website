@@ -612,6 +612,239 @@
     return frame;
   }
 
+  // ======================================================================
+  // experiment/seamless-crossing-continuous additions — native pre/post
+  // distortion. Everything in this block is new relative to caf6d4c and is
+  // strictly additive: no existing function's signature, timing input, or
+  // fallback path is changed by anything here.
+  //
+  // Root cause this addresses, for BOTH boundaries: caf6d4c already fixed
+  // texture staleness (hitch 1's contributing bug) and navigation cost
+  // (hitch 2's contributing bug), but in both places the actual surface
+  // handoff — real DOM -> WebGL canvas at activate(); WebGL canvas -> real
+  // iframe at Arrival-stable — is still an instant cut between two
+  // different rendering technologies. Even with pixel-identical content,
+  // that cut can read as a snap, because DOM compositing, canvas/GPU
+  // rasterization and iframe compositing do not produce byte-identical
+  // output (subpixel text AA, color management, etc.).
+  //
+  // The fix, validated in isolated real-device testing this same session
+  // (real iPhone Safari + desktop Chromium): apply a brief, native
+  // CSS/SVG-filter defocus (turbulence + displacement + blur) directly to
+  // the REAL content on either side of a cut, timed so the cut itself
+  // lands while that content is already softened rather than crisp — never
+  // a fade of the two surfaces into each other (a fade would mask a
+  // mismatch; this technique instead removes the observer's ability to
+  // resolve a mismatch at the one instant it would otherwise be visible).
+  //
+  // Boundary A: the real Home DOM sections currently in the viewport are
+  // pre-distorted (crisp -> illegible) for ~170ms immediately after click,
+  // BEFORE the frozen activate() ever runs — Formation's very first visible
+  // reaction to the click becomes this native ramp, not an abrupt WebGL
+  // jump-cut.
+  //
+  // Boundary B: the prewarmed iframe is momentarily post-distorted
+  // (illegible -> crisp) for ~140ms starting the instant it is revealed —
+  // its first visible frame is soft, not crisp, so the canvas-to-iframe cut
+  // lands while resolution is already reduced.
+  //
+  // Both ramps: (a) are skipped entirely under prefers-reduced-motion or
+  // when CSS.supports("filter", "url(...)") is false — in either case the
+  // exact prior, unmodified behavior runs, byte-for-byte; (b) only ever
+  // touch elements' `filter`/`class` — never opacity, layout, z-index, or
+  // any timing value beginInstrumentation() already depends on;
+  // (c) filter surfaces are scoped to individual, already-small elements
+  // (one <section> at a time; one iframe at full-viewport size) rather
+  // than the whole scrollable document — the exact constraint the isolated
+  // feasibility test's own real-device failure identified (a filtered
+  // subtree's rasterized offscreen buffer is bounded by its own bounding
+  // box × filter-region padding × device pixel ratio, and a ~25,000-
+  // physical-px-tall surface silently failed to render on real Safari).
+  // A full viewport at 3x DPR with 40% filter-region padding tops out
+  // around 3,500 physical px on its longest side here — comfortably under
+  // that ceiling.
+  // ======================================================================
+
+  function a1DistortionSupported() {
+    try {
+      const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (reduce) return false;
+    } catch {
+      // matchMedia unavailable — treat as unsupported, safest default.
+      return false;
+    }
+    const supportsFilter = typeof window.CSS !== "undefined" &&
+      typeof window.CSS.supports === "function" &&
+      window.CSS.supports("filter", "url(#a1-predistort-filter)");
+    return !!supportsFilter && typeof document.createElementNS === "function";
+  }
+
+  function buildDistortFilter(id, turbId, dispId, blurId) {
+    if (document.getElementById(id)) return;
+    const svgNS = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(svgNS, "svg");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("focusable", "false");
+    svg.style.position = "absolute";
+    svg.style.width = "0";
+    svg.style.height = "0";
+    svg.style.overflow = "hidden";
+
+    const filter = document.createElementNS(svgNS, "filter");
+    filter.setAttribute("id", id);
+    filter.setAttribute("x", "-20%");
+    filter.setAttribute("y", "-20%");
+    filter.setAttribute("width", "140%");
+    filter.setAttribute("height", "140%");
+    filter.setAttribute("color-interpolation-filters", "sRGB");
+
+    const turb = document.createElementNS(svgNS, "feTurbulence");
+    turb.setAttribute("id", turbId);
+    turb.setAttribute("type", "fractalNoise");
+    turb.setAttribute("baseFrequency", "0.006 0.015");
+    turb.setAttribute("numOctaves", "2");
+    turb.setAttribute("seed", "7");
+    turb.setAttribute("result", `${turbId}-out`);
+
+    const disp = document.createElementNS(svgNS, "feDisplacementMap");
+    disp.setAttribute("id", dispId);
+    disp.setAttribute("in", "SourceGraphic");
+    disp.setAttribute("in2", `${turbId}-out`);
+    disp.setAttribute("scale", "0");
+    disp.setAttribute("xChannelSelector", "R");
+    disp.setAttribute("yChannelSelector", "G");
+    disp.setAttribute("result", `${dispId}-out`);
+
+    const blur = document.createElementNS(svgNS, "feGaussianBlur");
+    blur.setAttribute("id", blurId);
+    blur.setAttribute("in", `${dispId}-out`);
+    blur.setAttribute("stdDeviation", "0");
+
+    filter.appendChild(turb);
+    filter.appendChild(disp);
+    filter.appendChild(blur);
+    svg.appendChild(filter);
+    document.body.appendChild(svg);
+  }
+
+  function ensureDistortionFilters() {
+    buildDistortFilter("a1-predistort-filter", "a1-pd-turb", "a1-pd-disp", "a1-pd-blur");
+    buildDistortFilter("a1-postdistort-filter", "a1-pd2-turb", "a1-pd2-disp", "a1-pd2-blur");
+  }
+
+  // The set of real, already-existing Home elements currently on screen at
+  // click time: the fixed header (if present) plus whichever direct
+  // children of <main id="home"> currently intersect the viewport. Each is
+  // filtered independently in its own natural bounding box — never merged
+  // into one wrapper — so no single filtered surface approaches the
+  // scrollable document's full height.
+  function getViewportVisibleHomeElements() {
+    const vh = window.innerHeight;
+    const els = [];
+    const header = document.querySelector("body > header");
+    if (header) {
+      const r = header.getBoundingClientRect();
+      if (r.bottom > 0 && r.top < vh) els.push(header);
+    }
+    const main = document.getElementById("home");
+    if (main) {
+      Array.from(main.children).forEach((section) => {
+        const r = section.getBoundingClientRect();
+        if (r.bottom > 0 && r.top < vh) els.push(section);
+      });
+    }
+    return els;
+  }
+
+  const PRE_DISTORT_DURATION_MS = 170;
+  const PRE_DISTORT_MAX_DISPLACEMENT = 46;
+  const PRE_DISTORT_MAX_BLUR = 7;
+
+  // Boundary A: ramps the real, currently-visible Home elements from crisp
+  // to illegible over ~170ms. Resolves once the ramp is complete, so
+  // bootstrap() can await it before ever touching activateBtn. No-op
+  // (resolves immediately) when unsupported/reduced-motion, or when
+  // nothing is actually on screen to distort (defensive — should not
+  // happen for a click that just occurred inside the Expertise section).
+  function runPreDistortRamp() {
+    if (!a1DistortionSupported()) return Promise.resolve();
+    ensureDistortionFilters();
+    const targets = getViewportVisibleHomeElements();
+    if (!targets.length) return Promise.resolve();
+    targets.forEach((el) => el.classList.add("a1-predistort-target"));
+
+    const disp = document.getElementById("a1-pd-disp");
+    const blur = document.getElementById("a1-pd-blur");
+    const rampStart = performance.now();
+    log("pre-distort ramp start", { targetCount: targets.length });
+    return new Promise((resolve) => {
+      const start = performance.now();
+      function tick(now) {
+        const t = Math.min(1, (now - start) / PRE_DISTORT_DURATION_MS);
+        const eased = t * t * (3 - 2 * t); // smoothstep — gentle start, resolves right before handoff
+        if (disp) disp.setAttribute("scale", String(PRE_DISTORT_MAX_DISPLACEMENT * eased));
+        if (blur) blur.setAttribute("stdDeviation", String(PRE_DISTORT_MAX_BLUR * eased));
+        if (t < 1) {
+          window.requestAnimationFrame(tick);
+        } else {
+          log("pre-distort ramp complete", { elapsedMs: Math.round(performance.now() - rampStart) });
+          resolve();
+        }
+      }
+      window.requestAnimationFrame(tick);
+    });
+  }
+
+  // Cleanup only — never part of the timing-critical path. Home is already
+  // visibility:hidden (body.mv-active) by the time this normally runs, so
+  // resetting is invisible; it just guarantees a visitor who returns to
+  // Home (Back, reset) sees crisp content again rather than a leftover
+  // filter reference.
+  function resetPreDistort() {
+    document.querySelectorAll(".a1-predistort-target").forEach((el) => {
+      el.classList.remove("a1-predistort-target");
+    });
+    const disp = document.getElementById("a1-pd-disp");
+    const blur = document.getElementById("a1-pd-blur");
+    if (disp) disp.setAttribute("scale", "0");
+    if (blur) blur.setAttribute("stdDeviation", "0");
+  }
+
+  const POST_DISTORT_DURATION_MS = 140;
+  const POST_DISTORT_MAX_DISPLACEMENT = 30;
+  const POST_DISTORT_MAX_BLUR = 5;
+
+  // Boundary B: the inverse ramp, applied to the prewarmed games iframe
+  // itself the instant it is revealed — starts soft, resolves to crisp
+  // over ~140ms. Does not delay or gate the reveal in any way (the
+  // existing is-visible/pushState logic is untouched); this only decorates
+  // the iframe's own already-scheduled first revealed frames.
+  function runPostDistortResolve(el) {
+    if (!a1DistortionSupported()) return;
+    ensureDistortionFilters();
+    el.classList.add("a1-postdistort-target");
+    const disp = document.getElementById("a1-pd2-disp");
+    const blur = document.getElementById("a1-pd2-blur");
+    if (disp) disp.setAttribute("scale", String(POST_DISTORT_MAX_DISPLACEMENT));
+    if (blur) blur.setAttribute("stdDeviation", String(POST_DISTORT_MAX_BLUR));
+    const rampStart = performance.now();
+    log("post-distort resolve start", {});
+    const start = performance.now();
+    function tick(now) {
+      const t = Math.min(1, (now - start) / POST_DISTORT_DURATION_MS);
+      const remaining = Math.pow(1 - t, 3); // ease-out — resolves to crisp quickly, then settles
+      if (disp) disp.setAttribute("scale", String(POST_DISTORT_MAX_DISPLACEMENT * remaining));
+      if (blur) blur.setAttribute("stdDeviation", String(POST_DISTORT_MAX_BLUR * remaining));
+      if (t < 1) {
+        window.requestAnimationFrame(tick);
+      } else {
+        el.classList.remove("a1-postdistort-target");
+        log("post-distort resolve complete", { elapsedMs: Math.round(performance.now() - rampStart) });
+      }
+    }
+    window.requestAnimationFrame(tick);
+  }
+
   // Back-button / history restoration for the seamless path. Only acts if
   // the games iframe is actually the visible surface right now — a
   // no-op on the very first pageload's own initial (non-pushed) history
@@ -643,6 +876,11 @@
     // disarms it again as its very first synchronous action.
     liveCaptureDisarmed = false;
     armLiveCaptureRefresher();
+    // seamless-crossing-continuous addition — defensive cleanup only, see
+    // resetPreDistort()'s own comment. Home is already visible again by
+    // this point (mv-active/is-visible already removed above), so this
+    // guarantees it is crisp, not a leftover mid-ramp filter value.
+    resetPreDistort();
   });
 
   function beginInstrumentation(activatedAt, link) {
@@ -721,6 +959,11 @@
               readyFrame.inert = false;
               readyFrame.removeAttribute("aria-hidden");
               readyFrame.classList.add("is-visible");
+              // seamless-crossing-continuous addition — see the block
+              // above getReadyGamesFrame() for full rationale. Purely
+              // decorative on top of the reveal above: does not change
+              // when or how is-visible/pushState/title/cleanup happen.
+              runPostDistortResolve(readyFrame);
               try {
                 if (readyFrame.contentDocument && readyFrame.contentDocument.title) {
                   document.title = readyFrame.contentDocument.title;
@@ -897,10 +1140,18 @@
     try {
       await ensureEngineReady();
 
+      // seamless-crossing-continuous addition — see the block above
+      // getReadyGamesFrame() for full rationale. Resolves immediately
+      // (true no-op) under reduced-motion or unsupported browsers, so
+      // activatedAt below still marks the same moment it always has in
+      // that case: right before the frozen activateBtn.click().
+      await runPreDistortRamp();
+
       handedOff = true;
       const activateBtn = document.getElementById("mv-activate");
       const activatedAt = performance.now();
       activateBtn.click();
+      resetPreDistort();
       beginInstrumentation(activatedAt, link);
     } catch (error) {
       fallbackNavigate(link, error && error.message ? error.message : String(error));
@@ -967,6 +1218,10 @@
       resetBtn.click();
       resetInvoked = true;
     }
+    // seamless-crossing-continuous addition — same defensive cleanup as
+    // the popstate handler above; a bfcache restore can land here with a
+    // mid-ramp filter value from the page instance that was frozen.
+    resetPreDistort();
 
     window.__a1Instrumentation.reentryEvents.push({
       at: Date.now(),
