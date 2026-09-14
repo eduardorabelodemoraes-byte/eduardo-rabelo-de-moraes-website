@@ -223,3 +223,37 @@ html.mv-scroll-locked body {
     padding: 0.4rem 0.5rem;
   }
 }
+
+/* seamless-crossing experiment addition. The prewarmed, real Games
+   document, embedded in a same-origin iframe and kept invisible/inert
+   (opacity 0, pointer-events none, `inert`) from the moment it is created
+   (Expertise-intersection prewarm) until the exact instant Arrival goes
+   stable. Stacked above #mv-canvas (z-index 999998) at all times so
+   revealing it is a single opacity/pointer-events toggle — no z-index
+   change, no layout, no paint of anything beneath it needs to happen at
+   reveal time. No CSS transition on either property: the reveal must be
+   an instant swap between two already-painted layers (the canvas's last
+   Arrival frame and the iframe's own settled anchor frame), not a fade —
+   a fade would mask a mismatch rather than the two frames genuinely
+   matching. background:#000 mirrors game-localization/index.html's own
+   inline `html,body{background:#000}` so there is nothing to flash even
+   in the split second before the iframe's own stylesheet has applied,
+   during its (always invisible) prewarm load. */
+#mv-games-frame {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 100vw;
+  height: 100vh;
+  border: 0;
+  z-index: 999999;
+  display: block;
+  opacity: 0;
+  pointer-events: none;
+  background: #000;
+}
+
+#mv-games-frame.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+}

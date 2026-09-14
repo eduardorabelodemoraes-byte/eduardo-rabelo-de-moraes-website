@@ -110,6 +110,22 @@
   const HANDOFF_MARKER_VERSION = 1;
   const HANDOFF_MARKER_SOURCE = "threshold-integration-phase1d";
 
+  // seamless-crossing experiment additions. This whole block, and every
+  // function below marked "seamless-crossing", is new in this experiment;
+  // nothing above this point is touched. The marker/double-rAF/
+  // location.assign() exit path a few functions down is left completely
+  // intact and still runs, unmodified, as the fallback whenever any part
+  // of the seamless path below isn't ready — see beginInstrumentation().
+  const GAMES_IFRAME_ID = "mv-games-frame";
+  // material-engine.js's own selectTextureKey() threshold (window.
+  // innerWidth <= 700 ? "mobile" : "desktop") — reused here verbatim
+  // because reuploadHomeTexture() writes into the SAME textureObjects map
+  // keyed by that exact function's output. Intentionally NOT the same
+  // number as game-localization/script.js's isMobile() (640) — that is a
+  // different threshold for a different page/purpose.
+  const HOME_TEXTURE_MOBILE_MAX_WIDTH = 700;
+  const LIVE_CAPTURE_DEBOUNCE_MS = 120;
+
   // A4 addition: fixed reference dimensions for the two canonical Home
   // captures (see prebaked/mv-home-desktop.png / mv-home-iphone.png).
   // These are the CSS-pixel viewport sizes the captures were taken at —
@@ -131,6 +147,15 @@
   // work or racing it.
   let engineReadyPromise = null;
 
+  // seamless-crossing experiment additions — mirror engineReadyPromise's
+  // idempotency pattern for the two new prewarm resources.
+  let gamesFrameReadyPromise = null;
+  let html2canvasLoadPromise = null;
+  let latestLiveHomeCapture = null; // {canvas, capturedAt} | null
+  let liveCaptureInFlight = false;
+  let liveCaptureDebounceTimer = null;
+  let liveCaptureDisarmed = false;
+
   function log(label, detail) {
     // eslint-disable-next-line no-console
     console.info(`[a1] ${label}`, detail === undefined ? "" : detail);
@@ -150,7 +175,8 @@
     reentryEvents: [],
     prefetchStartedAt: null,
     prefetchCompletedAt: null,
-    prefetchOutcome: null
+    prefetchOutcome: null,
+    seamlessHandoffUsed: null
   };
 
   function isStandardActivation(event, link) {
@@ -349,6 +375,276 @@
     });
   }
 
+  // ======================================================================
+  // seamless-crossing experiment — everything from here to
+  // beginInstrumentation() below is new. Two independent additions:
+  //
+  //   (A) Live Home texture refresh (fixes hitch 1: a small snap at
+  //       activate(), immediately after clicking). Root cause: the Home
+  //       texture is uploaded into WebGL exactly once, at prewarm time,
+  //       from either a canonical fixed-scroll PNG or a one-shot capture —
+  //       both go stale the moment the visitor scrolls again before
+  //       clicking, and activate()'s live-DOM-to-canvas swap has no
+  //       transition, so any mismatch is an instant, visible snap.
+  //       reuploadHomeTexture() (material-engine.js addition, above) makes
+  //       it safe to keep that texture live: html2canvas captures the
+  //       visitor's actual current viewport, debounced on scroll/resize so
+  //       the (relatively costly) rasterization never runs on the click's
+  //       critical path — exactly the performance concern Candidate A3's
+  //       own file-header comment (preserved in git history) raised
+  //       against doing this at click time. The GPU re-upload itself is
+  //       cheap (one texImage2D of an already-rasterized canvas) and is
+  //       safe to do synchronously.
+  //
+  //   (B) Prewarmed Games surface (fixes hitch 2: a small hitch at the end,
+  //       when Crossing/Arrival becomes the real page). Root cause: the
+  //       exit path is a real cross-document navigation
+  //       (window.location.assign) — even with the existing prefetch hint,
+  //       the browser still has to tear down Home's document (destroying
+  //       its WebGL context) and construct, parse, and paint a new one
+  //       from scratch, which is not something a resource hint alone can
+  //       make imperceptible. ensureGamesFrameReady() loads the real,
+  //       unmodified game-localization/index.html into a same-origin
+  //       iframe during the same Expertise-intersection prewarm window
+  //       already used for the engine — kept fully invisible/inert
+  //       (opacity 0, pointer-events none, inert) the entire time, so no
+  //       visitor ever sees or can reach it before Arrival is done. Because
+  //       it is loaded and settles seconds before it is ever revealed, its
+  //       nav-color transition, fonts, and layout are already finished by
+  //       reveal time — it is not "instant" the way the canvas is, it is
+  //       just already old news by the time anyone looks at it. Revealing
+  //       it is a single opacity/pointer-events toggle between two already
+  //       -painted layers (see material-harness.css), paired with
+  //       history.pushState() so the address bar and back button behave
+  //       correctly without an actual document load.
+  //
+  // Both are strictly additive and strictly best-effort: if either fails
+  // or is not ready by the time it is needed, the exact original,
+  // previously-approved mechanism (canonical/whatever-was-last-uploaded
+  // texture; marker + double-rAF + location.assign()) is what runs —
+  // neither addition can make a real activation worse than it already was.
+  // ======================================================================
+
+  function loadHtml2Canvas() {
+    if (window.html2canvas) return Promise.resolve();
+    if (html2canvasLoadPromise) return html2canvasLoadPromise;
+    html2canvasLoadPromise = new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.id = "a1-html2canvas";
+      script.src = `${BASE}html2canvas.min.js`;
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error("html2canvas.min.js failed to load"));
+      document.body.appendChild(script);
+    });
+    return html2canvasLoadPromise;
+  }
+
+  // Opportunistic, synchronous, cheap: pushes whatever the latest live
+  // capture is into the already-initialized engine's Home texture. No-op
+  // (silently) if the engine isn't initialized yet or no capture exists
+  // yet — the canonical-PNG texture initialize() already uploaded remains
+  // in place either way, so this is purely additive freshness, never a
+  // correctness requirement.
+  function refreshHomeTextureIfPossible() {
+    // Disarmed means activation has begun (or is imminent) — never swap
+    // the live GL texture once the crossing may be running. See
+    // disarmLiveCaptureRefresher() for why this guard has to be checked
+    // again here, not just at the scroll/resize listener boundary: a
+    // capture already in flight when disarm fires must still be blocked
+    // from reaching the GPU after it resolves.
+    if (liveCaptureDisarmed) return;
+    if (!latestLiveHomeCapture) return;
+    if (!window.__mvDebug || typeof window.__mvDebug.reuploadHomeTexture !== "function") return;
+    const key = window.innerWidth <= HOME_TEXTURE_MOBILE_MAX_WIDTH ? "mobile" : "desktop";
+    window.__mvDebug.reuploadHomeTexture(latestLiveHomeCapture.canvas, key);
+  }
+
+  // The html2canvas-based technique A1—A3 proved for a click-time capture
+  // (captureLiveHomeViewport(), preserved in git history), reused here
+  // unchanged in its capture/crop logic — only WHEN it runs differs (see
+  // scheduleLiveCaptureRefresh() below, not the click path). Captures only
+  // the currently-visible viewport window at the visitor's actual scroll
+  // position and actual dpr.
+  async function refreshLiveHomeCapture() {
+    if (liveCaptureDisarmed) return;
+    if (liveCaptureInFlight) return;
+    liveCaptureInFlight = true;
+    try {
+      await loadHtml2Canvas();
+      const dpr = window.devicePixelRatio || 1;
+      const viewportW = window.innerWidth;
+      const viewportH = window.innerHeight;
+      const scrollY = window.scrollY;
+
+      const fullCanvas = await window.html2canvas(document.documentElement, {
+        scale: dpr,
+        useCORS: true,
+        backgroundColor: null,
+        logging: false,
+        onclone: (clonedDocument) => {
+          const clonedLink = clonedDocument.querySelector(ENTRY_SELECTOR);
+          if (clonedLink) clonedLink.style.textDecoration = "none";
+        }
+      });
+
+      const cropCanvas = document.createElement("canvas");
+      cropCanvas.width = Math.round(viewportW * dpr);
+      cropCanvas.height = Math.round(viewportH * dpr);
+      cropCanvas.getContext("2d").drawImage(
+        fullCanvas,
+        0, Math.round(scrollY * dpr), cropCanvas.width, cropCanvas.height,
+        0, 0, cropCanvas.width, cropCanvas.height
+      );
+
+      latestLiveHomeCapture = { canvas: cropCanvas, capturedAt: performance.now() };
+      refreshHomeTextureIfPossible();
+    } catch (error) {
+      log("live Home capture refresh failed (non-fatal — canonical/last-known texture stays in use)", error && error.message ? error.message : String(error));
+    } finally {
+      liveCaptureInFlight = false;
+    }
+  }
+
+  function scheduleLiveCaptureRefresh() {
+    if (liveCaptureDisarmed) return;
+    if (liveCaptureDebounceTimer) window.clearTimeout(liveCaptureDebounceTimer);
+    liveCaptureDebounceTimer = window.setTimeout(() => {
+      liveCaptureDebounceTimer = null;
+      refreshLiveHomeCapture();
+    }, LIVE_CAPTURE_DEBOUNCE_MS);
+  }
+
+  function armLiveCaptureRefresher() {
+    window.addEventListener("scroll", scheduleLiveCaptureRefresh, { passive: true });
+    window.addEventListener("resize", scheduleLiveCaptureRefresh, { passive: true });
+    refreshLiveHomeCapture(); // first capture immediately, don't wait for a scroll event
+  }
+
+  // Root-cause fix for a real hitch-1 regression this pass introduced and
+  // then found in validation (mobile, high-DPR): activate()'s own
+  // scroll-lock reflow (material-engine.js locks scroll via
+  // position:fixed + a negative `top` offset the instant it runs) fires a
+  // native scroll/resize event. Without this guard that event re-arms
+  // scheduleLiveCaptureRefresh(), which — 120ms later, now WELL into the
+  // crossing — kicks off a full-page html2canvas rasterization and then
+  // calls reuploadHomeTexture(), deleting and replacing the GL texture
+  // the render loop is actively binding and drawing every frame. On this
+  // environment's software-rendered WebGL that race reliably produced a
+  // fully black composited frame (confirmed via before/after byte-identical
+  // repro across multiple runs, and absent entirely on baseline code and
+  // with only this refresher's listeners disabled — see validation notes).
+  // The fix is to make it structurally impossible for a capture to reach
+  // the GPU once activation has begun, not to delay or debounce around the
+  // symptom: disarm the refresher as the very first synchronous action in
+  // bootstrap(), before activateBtn.click() ever runs, so scroll-lock's own
+  // reflow event lands on listeners that are already gone.
+  function disarmLiveCaptureRefresher() {
+    if (liveCaptureDisarmed) return;
+    liveCaptureDisarmed = true;
+    window.removeEventListener("scroll", scheduleLiveCaptureRefresh);
+    window.removeEventListener("resize", scheduleLiveCaptureRefresh);
+    if (liveCaptureDebounceTimer) {
+      window.clearTimeout(liveCaptureDebounceTimer);
+      liveCaptureDebounceTimer = null;
+    }
+  }
+
+  // Loads the real, unmodified game-localization/index.html into a
+  // same-origin, fully invisible/inert iframe, and waits for its script.js
+  // (loaded with `defer`, same as always) to reach the point where it
+  // exposes window.__embeddedRelease — i.e. its "embedded prewarm" branch
+  // (game-localization/script.js addition) has established the exact same
+  // anchor state (#world visible, correct nav, .narr pre-reveal) the
+  // direct-navigation path reaches after its own double-rAF gate, and is
+  // now just waiting to be told when to release the narrative reveal.
+  function ensureGamesFrameReady() {
+    if (gamesFrameReadyPromise) return gamesFrameReadyPromise;
+    gamesFrameReadyPromise = (async () => {
+      const link = document.querySelector(ENTRY_SELECTOR);
+      if (!link) throw new Error("entry link not found for games iframe prewarm");
+
+      const frame = document.createElement("iframe");
+      frame.id = GAMES_IFRAME_ID;
+      frame.setAttribute("aria-hidden", "true");
+      frame.tabIndex = -1;
+      frame.inert = true; // excludes the whole subtree from focus/AT while hidden; cleared on reveal
+      const url = new URL(link.href, window.location.href);
+      url.searchParams.set("embeddedPrewarm", "1");
+      frame.src = url.href;
+
+      await new Promise((resolve, reject) => {
+        frame.addEventListener("load", function onLoad() {
+          frame.removeEventListener("load", onLoad);
+          resolve();
+        });
+        frame.addEventListener("error", function onError() {
+          frame.removeEventListener("error", onError);
+          reject(new Error("games iframe failed to load"));
+        });
+        document.body.appendChild(frame);
+      });
+
+      await new Promise((resolve, reject) => {
+        const start = performance.now();
+        (function poll() {
+          if (frame.contentWindow && typeof frame.contentWindow.__embeddedRelease === "function") {
+            resolve();
+            return;
+          }
+          if (performance.now() - start > READY_TIMEOUT_MS) {
+            reject(new Error("games iframe script did not expose __embeddedRelease in time"));
+            return;
+          }
+          window.setTimeout(poll, READY_POLL_MS);
+        })();
+      });
+    })();
+    return gamesFrameReadyPromise;
+  }
+
+  // Returns the frame only if it is fully ready to be revealed right now —
+  // the single check beginInstrumentation() uses to decide seamless-reveal
+  // vs. the original real-navigation fallback.
+  function getReadyGamesFrame() {
+    const frame = document.getElementById(GAMES_IFRAME_ID);
+    if (!frame || !frame.contentWindow) return null;
+    if (typeof frame.contentWindow.__embeddedRelease !== "function") return null;
+    return frame;
+  }
+
+  // Back-button / history restoration for the seamless path. Only acts if
+  // the games iframe is actually the visible surface right now — a
+  // no-op on the very first pageload's own initial (non-pushed) history
+  // entry, and a no-op if the visitor never seamlessly crossed at all
+  // (e.g. the marker/location.assign() fallback ran instead, in which
+  // case Back is ordinary cross-document back-navigation, unaffected by
+  // anything in this file).
+  window.addEventListener("popstate", () => {
+    const frame = document.getElementById(GAMES_IFRAME_ID);
+    if (!frame || !frame.classList.contains("is-visible")) return;
+    frame.classList.remove("is-visible");
+    frame.inert = true;
+    if (window.__mvExperiment && typeof window.__mvExperiment.resumeRenderLoop === "function") {
+      window.__mvExperiment.resumeRenderLoop();
+    }
+    // Same, already-proven technique the bfcache/pageshow handler below
+    // uses: never call the frozen engine's reset() directly, only ever
+    // via the real #mv-reset button's own click listener.
+    const resetBtn = document.getElementById("mv-reset");
+    if (resetBtn && !resetBtn.disabled) resetBtn.click();
+    handedOff = false;
+    bootstrapping = false;
+    // Genuinely back at rest in "solid" phase — safe (and correct, for a
+    // second click in the same page session) to resume keeping the Home
+    // texture live again. liveCaptureDisarmed only needs to stay set
+    // between the moment activation begins and the moment the visitor is
+    // fully back at rest; re-arming here does not reopen the race
+    // disarmLiveCaptureRefresher() fixed, since the next click still
+    // disarms it again as its very first synchronous action.
+    liveCaptureDisarmed = false;
+    armLiveCaptureRefresher();
+  });
+
   function beginInstrumentation(activatedAt, link) {
     window.__a1Instrumentation.activatedAt = activatedAt;
     let lastPhase = null, lastSubStage = null, lastArrivalPhase = null;
@@ -393,6 +689,71 @@
 
       if (arrivalPhase === "stable") {
         window.__a1Instrumentation.arrivalStableAt = Math.round(performance.now() - activatedAt);
+
+        // seamless-crossing experiment addition — try the in-document
+        // reveal first; fall through to the exact original mechanism
+        // (unchanged, below) if the prewarmed iframe isn't ready.
+        const readyFrame = getReadyGamesFrame();
+        window.__a1Instrumentation.seamlessHandoffUsed = !!readyFrame;
+        if (readyFrame) {
+          // Release the iframe's OWN narrative reveal now — it runs the
+          // identical double-rAF anchor-then-paint guarantee
+          // game-localization/script.js already uses for the real-
+          // navigation path (see its isHandoffEntry branch), just
+          // triggered externally instead of automatically on load. This
+          // happens first, and off-screen (still opacity 0), so its own
+          // reveal transition is never visible — by the time we reveal
+          // the iframe below, it has already been sitting in its fully
+          // pre-reveal-correct anchor state for at least two of its own
+          // frames.
+          readyFrame.contentWindow.__embeddedRelease();
+
+          // Same two-rAF idiom as the original exit path (and the
+          // Boundary-B fix): the first rAF's callback does nothing but
+          // schedule the second, guaranteeing the canvas's current
+          // (Arrival-stable) frame gets a genuine, distinct paint of its
+          // own before the swap mutation below runs on the nested rAF.
+          window.requestAnimationFrame(() => {
+            window.requestAnimationFrame(() => {
+              window.__a1Instrumentation.navigateInitiatedAt = Math.round(performance.now() - activatedAt);
+              log("revealing prewarmed Games surface (no document navigation)", { href: link.href });
+
+              readyFrame.inert = false;
+              readyFrame.removeAttribute("aria-hidden");
+              readyFrame.classList.add("is-visible");
+              try {
+                if (readyFrame.contentDocument && readyFrame.contentDocument.title) {
+                  document.title = readyFrame.contentDocument.title;
+                }
+              } catch { /* cross-origin or not-yet-available — title stays as-is */ }
+              try {
+                window.history.pushState({ a1SeamlessGames: true }, "", link.href);
+              } catch (error) {
+                log("history.pushState failed (non-fatal — URL will not reflect the games page)", error && error.message ? error.message : String(error));
+              }
+
+              // Resource hygiene only, deferred well past the swap so it
+              // can never race or visually couple with it: the canvas is
+              // already fully occluded by the now-visible iframe (higher
+              // z-index) by the time this runs. Stops the Home WebGL
+              // render loop, which would otherwise keep running
+              // indefinitely in the background now that Home's own
+              // document is never actually torn down.
+              window.setTimeout(() => {
+                const canvasEl = document.getElementById("mv-canvas");
+                if (canvasEl) canvasEl.classList.remove("is-visible", "mv-canvas--interactive");
+                if (window.__mvExperiment && typeof window.__mvExperiment.pauseRenderLoop === "function") {
+                  window.__mvExperiment.pauseRenderLoop();
+                }
+              }, 400);
+            });
+          });
+          return;
+        }
+
+        // Original A4 mechanism — unchanged, always available as a
+        // fallback (prewarmed iframe never became ready: e.g. a very fast
+        // activation, a slow network, or an html2canvas/iframe failure).
         const markerWritten = writeHandoffMarker();
         window.__a1Instrumentation.handoffMarkerWritten = markerWritten;
         window.requestAnimationFrame(() => {
@@ -483,12 +844,41 @@
       for (const entry of entries) {
         if (entry.isIntersecting) {
           observer.disconnect();
-          ensureEngineReady().catch((error) => {
+          const engineReady = ensureEngineReady().catch((error) => {
             // Swallow here — this is a best-effort prewarm. Any real
             // failure surfaces identically through the click handler's
             // own ensureEngineReady() call and its existing
             // fallbackNavigate() path.
             log("prewarm failed (non-fatal, click path will retry)", error && error.message ? error.message : String(error));
+          });
+          // seamless-crossing experiment additions — same trigger as the
+          // engine prewarm above, but deliberately SEQUENCED after it
+          // genuinely finishes (not just started) rather than fired in
+          // parallel or merely deferred a tick. WebGL context creation
+          // (inside ensureEngineReady() -> initialize(), frozen) is the
+          // one truly critical, latency-sensitive resource being
+          // prewarmed here. Empirically, in this sandbox's software-GL
+          // (SwiftShader) path, any of the games iframe's own document
+          // load/script execution, or html2canvas's DOM rasterization,
+          // overlapping with WebGL context creation measurably increases
+          // context-creation failures — plain parallel dispatch, and even
+          // a same-tick requestIdleCallback deferral (which can still
+          // overlap a slow initialize() that hasn't resolved yet), both
+          // reproduced it. Waiting for engineReady to actually settle
+          // before starting either one removes the overlap entirely, and
+          // running the iframe load and the first live capture in
+          // sequence (not both at once) spreads out the remaining CPU
+          // cost further. Total added lead time versus firing everything
+          // at once is at most a second or two — irrelevant against the
+          // many seconds a visitor typically dwells on Expertise before
+          // clicking. Neither failure path here touches bootstrap()/the
+          // click handler at all; beginInstrumentation() simply falls
+          // back to the original mechanism if either isn't ready when
+          // needed.
+          engineReady.then(() => ensureGamesFrameReady()).catch((error) => {
+            log("games iframe prewarm failed (non-fatal — real navigation fallback remains available)", error && error.message ? error.message : String(error));
+          }).then(() => {
+            armLiveCaptureRefresher();
           });
           return;
         }
@@ -500,6 +890,10 @@
   async function bootstrap(link) {
     if (bootstrapping || handedOff) return;
     bootstrapping = true;
+    // Must be the first synchronous action, before any await and before
+    // activateBtn.click() below triggers activate()'s scroll-lock reflow —
+    // see disarmLiveCaptureRefresher()'s own comment for why.
+    disarmLiveCaptureRefresher();
     try {
       await ensureEngineReady();
 

@@ -3085,7 +3085,51 @@
           height: prewarmedC400 ? prewarmedC400.height : null,
           scheduled: prewarmScheduled,
           log: prewarmLog.slice()
-        })
+        }),
+        // seamless-crossing experiment addition — the ONLY new capability
+        // this pass adds to the frozen engine's public surface. Everything
+        // above this key, and every line of activate()/render()/update()/
+        // the shaders/C400/Crossing/Arrival timing, is untouched.
+        //
+        // Why this exists: initialize() (above, unchanged) uploads the
+        // Home texture into WebGL exactly once, synchronously, at prewarm
+        // time, keyed on whatever window.__threshold_homeOverride holds at
+        // that instant — and there is no re-upload/re-initialize path
+        // anywhere else in this file's public surface. Candidate A3's own
+        // file-header comment (preserved in git history) already
+        // identified this exact limitation when it investigated and
+        // rejected prewarming the Home capture: "whatever viewport/scroll
+        // state exists at [prewarm] time would be permanently baked into
+        // the WebGL texture, even if the visitor keeps scrolling before
+        // actually clicking." That is the root cause of this experiment's
+        // first hitch (a visible content-position snap at activate() when
+        // the visitor's real scroll position differs from whatever texture
+        // is already uploaded). This function is what makes prewarming
+        // safe: the adapter can call it with a freshly-captured image any
+        // time before activate() — including synchronously, since it is
+        // just one texImage2D upload of an already-rasterized canvas, not
+        // a DOM rasterization itself — to keep the Home texture in sync
+        // with the visitor's actual, current scroll position right up to
+        // the moment of activation.
+        //
+        // Replaces ONLY the named key's GL texture object and its CPU-side
+        // diagnostic cache (capturePixelDataDiag mirrors the same call
+        // initialize() already makes for this key). Deletes the old GL
+        // texture so repeated calls (e.g. on every debounced scroll
+        // settle) do not leak GPU memory. Touches nothing else — not
+        // materialPhase, not liquidMix, not canvas visibility, not
+        // coverMapping, not any simulation/water resource. No-op (returns
+        // false) if `key` is not an already-known Home texture key, i.e.
+        // initialize() has not run yet.
+        reuploadHomeTexture: (image, key) => {
+          if (!textureObjects.has(key)) return false;
+          const oldTexture = textureObjects.get(key);
+          const newTexture = uploadTexture(image);
+          textureObjects.set(key, newTexture);
+          homePixelCache.set(key, capturePixelDataDiag(image));
+          if (oldTexture) gl.deleteTexture(oldTexture);
+          return true;
+        }
       };
 
       // window.__mvDiag: the diagnostic-only surface for this pass.
