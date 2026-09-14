@@ -100,14 +100,41 @@ const TARGETS = [
 
 // Injected into the capture browser context ONLY, before any page script
 // runs. Never written to any shipped file. See file header for rationale.
+//
+// Two different "deterministic" targets exist on this page, and they need
+// opposite treatment:
+//   - Ambient world animation (.field-cyan, .field-violet, #prologue
+//     .spark, .trace, .voice) and the narrative reveal itself (desktop's
+//     .narr CSS transition, mobile's animateMobileNarr() WAAPI animation)
+//     must be pinned at their DETERMINISTIC STARTING frame (currentTime 0)
+//     — that's the pre-reveal anchor this tool exists to capture.
+//   - The right-side chapter nav's active-state indicator
+//     (#side-nav a.active's `color`/background transition, driven by
+//     script.js's updateNav(), unrelated to the reveal/ambient systems
+//     above) is a plain settle-on-load UI transition. The live page's own
+//     first real frame already shows it fully settled (updateNav() runs
+//     synchronously on load) — freezing it at currentTime 0 like the
+//     other animations was a bug in an earlier version of this tool: it
+//     captured the active nav link in its pre-transition grey state
+//     instead of the settled amber the real page actually shows
+//     immediately, producing a small but real mismatch at the Arrival ->
+//     Games boundary. Anything under #side-nav is instead advanced to
+//     its END state via `.finish()`, deterministically, regardless of
+//     real elapsed time — not by waiting a fixed duration.
 const FREEZE_INIT_SCRIPT = `
 (() => {
+  const isNavSettleTarget = (el) => !!(el && el.closest && el.closest('#side-nav'));
   const freezeAll = () => {
     try {
       document.getAnimations().forEach((a) => {
         try {
-          a.pause();
-          a.currentTime = 0;
+          const target = a.effect && a.effect.target;
+          if (isNavSettleTarget(target)) {
+            a.finish();
+          } else {
+            a.pause();
+            a.currentTime = 0;
+          }
         } catch (e) {}
       });
     } catch (e) {}
@@ -116,8 +143,12 @@ const FREEZE_INIT_SCRIPT = `
   Element.prototype.animate = function (...args) {
     const a = origAnimate.apply(this, args);
     try {
-      a.pause();
-      a.currentTime = 0;
+      if (isNavSettleTarget(this)) {
+        a.finish();
+      } else {
+        a.pause();
+        a.currentTime = 0;
+      }
     } catch (e) {}
     return a;
   };
@@ -231,6 +262,17 @@ async function captureOne(browser, target, outDir) {
 
   const worldOpacity = await page.evaluate(() => getComputedStyle(document.getElementById("world")).opacity);
   trace.worldOpacity = worldOpacity;
+
+  // Verification-only, not used to alter the capture: confirms the settled
+  // (not frozen-grey) active nav state landed correctly. See the
+  // FREEZE_INIT_SCRIPT comment above for why #side-nav is exempted from
+  // the currentTime-0 freeze.
+  trace.activeNav = await page.evaluate(() => {
+    const active = document.querySelector("#side-nav a.active");
+    return active
+      ? { text: active.textContent, color: getComputedStyle(active).color }
+      : null;
+  });
 
   fs.mkdirSync(outDir, { recursive: true });
   const outPath = path.join(outDir, target.file);
