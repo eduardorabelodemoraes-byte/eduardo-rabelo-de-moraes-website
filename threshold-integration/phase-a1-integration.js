@@ -1,85 +1,55 @@
-// Integration Candidate A4 — production-integration strategy change on top
-// of Candidate A3 (Real Home -> approved Threshold portal -> real Game
-// Localization page). A3's EXIT refinement (prefetchGamesDocument()) is
-// carried forward unchanged. This candidate replaces A3's ENTRY story:
+// experiment/liquid-atmosphere-gate1 — Gate 1 of the rebuilt post-Home
+// passage, on top of Candidate A4's clean ENTRY architecture (Real Home,
+// static canonical PNG captures, no html2canvas, no live DOM capture).
+// The html2canvas/iframe/live-capture EXIT architecture explored by
+// caf6d4c/0f1b700/995b1ba failed on real devices and is not present here
+// in any form — this file was branched from validation/stable-games-v8@
+// 44a11a4, which predates all of it.
 //
 // COMPLETE NO-OP unless the page is loaded with ?thresholdIntegration=1.
 // Ungated behavior is byte-for-byte unchanged: no listeners, no DOM
 // injection, no network requests, nothing.
 //
 // This file never touches C400/Crossing/Arrival physics, timing, shaders or
-// choreography. Every change in this candidate is adapter-side only.
+// choreography beyond what material-engine.js's own Gate 1 shader/state
+// changes already describe. Every change in this file is adapter-side only.
 //
-//   (6) ENTRY architecture change (this candidate) — removes html2canvas
-//       and the runtime, click-time DOM capture it performed
-//       (captureLiveHomeViewport(), A1/A2/A3's Boundary A technique)
-//       entirely from the critical path. In its place, two new canonical,
-//       prevalidated PNG captures of the real Home page's Expertise
-//       section — threshold-integration/prebaked/mv-home-desktop.png and
-//       mv-home-iphone.png, generated once, offline, from the real
-//       unmodified repo (see prebaked/README-a4-capture.md) — are supplied
-//       to the frozen engine through the SAME override seam Candidate A1
-//       already added and Candidate A3's Games-side loadGamesOverride()
-//       already exercises: window.__threshold_homeOverride. Per
-//       material-engine.js's own initialize() (`const override =
-//       window.__threshold_homeOverride && window.__threshold_homeOverride
-//       [key]; const image = override ? override : await
-//       loadImage(def.file);`), the engine cannot distinguish a preloaded
-//       Image() from a live-captured canvas — both are plain
-//       CanvasImageSource values accepted identically by uploadTexture().
-//       Nothing in material-engine.js changes or needs to change.
+//   ENTRY architecture (unchanged from A4) — no html2canvas, no runtime
+//       DOM capture. Two canonical, prevalidated PNG captures of the real
+//       Home page's Expertise section — threshold-integration/prebaked/
+//       mv-home-desktop.png and mv-home-iphone.png — are supplied to the
+//       frozen engine through the override seam A1 added:
+//       window.__threshold_homeOverride. loadHomeOverride() loads them
+//       exactly once per page lifetime, via a plain Image() load; nothing
+//       recaptures or reuploads Home after that.
 //
-//       Because the Home texture source is now a static, preloadable asset
-//       instead of a value that can only exist at the instant of a real
-//       click, the ENTRY prewarm A3 investigated and explicitly declined
-//       to implement (A3's own file-header comment, preserved in git
-//       history) is now safe and is implemented here: as soon as the
-//       Expertise section (where the Game Localization link lives) enters
-//       the viewport, this adapter loads the canonical Home/Games images,
-//       loads material-engine.js, and runs the frozen engine's entire
-//       initialize() (WebGL context, shader compile, texture upload, C400
-//       prewarm scheduling) — all while canvas opacity is 0 and
-//       pointer-events is none (material-harness.css, unchanged), so the
-//       real, live Home DOM is the only thing the visitor ever sees or can
-//       interact with until they actually click. On click, if prewarm has
-//       already completed, activation is immediate (activateBtn.click()
-//       synchronously) with zero further async work on the click path
-//       itself. If prewarm has not yet completed (click arriving unusually
-//       fast after Expertise becomes visible), the same idempotent
-//       ensureEngineReady() path click triggers is exactly what the
-//       observer trigger already started — click simply awaits whatever
-//       remains, same as A1/A2/A3 always did, still with html2canvas and
-//       its runtime capture removed either way.
+//   ENTRY prewarm timing (Gate 1 change) — armEagerPrewarm() starts the
+//       frozen engine's initialize()/C400 prewarm as soon as this script
+//       runs, no longer gated behind scrolling the Expertise section into
+//       view (A4's armPrewarmObserver()). This is a TIMING change only:
+//       the Home texture mechanism it warms up is the same single static
+//       load described above. Canvas opacity stays 0 and pointer-events
+//       stays none (material-harness.css, unchanged) throughout prewarm,
+//       so the real, live Home DOM is the only thing a visitor sees or
+//       can interact with until they actually click.
 //
-//       Accepted, disclosed trade-off (explicit product decision, not an
-//       oversight): the canonical image is captured once, offline, with
-//       the Expertise section scrolled fully into view — the same
-//       composition the OLD live capture always produced, since a visitor
-//       cannot click a link that is not on screen. It does NOT reflect an
-//       individual visitor's exact live scroll offset, in-between scroll
-//       position, or any dynamic/session-specific Home state at their
-//       actual moment of click. Home's Expertise section carries no
-//       dynamic data, so in the overwhelming majority of real activations
-//       this is visually indistinguishable from the old live capture; the
-//       one class of visit where it would differ is a click landing at an
-//       unusual, non-Expertise-centered scroll position, which the old
-//       per-click capture could represent and this canonical one cannot.
+//   EXIT (Gate 1 change) — there is no EXIT in this Gate. A3/A4's
+//       prefetchGamesDocument() and the handoff-marker + real
+//       location.assign() navigation are both removed entirely: this
+//       experiment ends at the new procedural atmosphere's held resting
+//       state (arrivalPhase "stable" — see material-engine.js) and goes
+//       no further. If Gate 1 validates on real devices, Gate 2 adds real
+//       navigation from that same held state into Stable Games V8's own
+//       new atmospheric pre-narrative entry point.
 //
-//   (4) EXIT refinement (unchanged from A3) — prefetchGamesDocument():
-//       during the Crossing, once the frozen engine's own materialPhase
-//       first leaves "solid", issue a same-origin <link rel="prefetch">
-//       hint for the real /game-localization/ document.
-//
-// Known, disclosed limitation carried into this candidate (see A2/A3's own
+// Known, disclosed limitation carried into this file (see A2/A3/A4's own
 // reports): the frozen engine uses ONE shared cover-fit reference aspect
-// for both the Home and Games textures (manifestEntries[key].cssWidth/
-// cssHeight). This candidate sets that reference to the canonical capture's
-// own fixed viewport size per device class (1366x800 desktop, 390x844
-// mobile — the same sizes this repo's local validation harness already
-// uses) rather than the visitor's live viewport, so cover-fit is exact only
-// when the live viewport matches one of those two references and shows the
-// same letterboxing/cropping characteristic CHOREOGRAPHY.txt already
-// documents as accepted for the approved experiment otherwise.
+// for the Home texture (manifestEntries[key].cssWidth/cssHeight). This
+// file sets that reference to the canonical capture's own fixed viewport
+// size per device class (1366x800 desktop, 390x844 mobile — the same
+// sizes this repo's local validation harness already uses) rather than
+// the visitor's live viewport, so cover-fit is exact only when the live
+// viewport matches one of those two references.
 
 (() => {
   "use strict";
@@ -97,18 +67,9 @@
   // candidate targets the existing, real link by its actual href instead
   // of requiring a new attribute.
   const ENTRY_SELECTOR = 'a.expertise__link[href="game-localization/"]';
-  // A4 addition: the prewarm trigger. The real "Game Localization" link
-  // lives inside this section (see index.html) — a visitor cannot activate
-  // the entry without this section having already been scrolled into view,
-  // so it is both a safe and a maximally-early prewarm signal.
-  const PREWARM_TRIGGER_SELECTOR = "#expertise";
   const BASE = "threshold-integration/";
   const READY_TIMEOUT_MS = 8000;
   const READY_POLL_MS = 40;
-
-  const HANDOFF_STORAGE_KEY = "phase1dThresholdHandoff";
-  const HANDOFF_MARKER_VERSION = 1;
-  const HANDOFF_MARKER_SOURCE = "threshold-integration-phase1d";
 
   // A4 addition: fixed reference dimensions for the two canonical Home
   // captures (see prebaked/mv-home-desktop.png / mv-home-iphone.png).
@@ -144,13 +105,8 @@
     activatedAt: null,
     events: [],
     fallback: null,
-    arrivalStableAt: null,
-    handoffMarkerWritten: null,
-    navigateInitiatedAt: null,
-    reentryEvents: [],
-    prefetchStartedAt: null,
-    prefetchCompletedAt: null,
-    prefetchOutcome: null
+    atmosphereSettledAt: null,
+    reentryEvents: []
   };
 
   function isStandardActivation(event, link) {
@@ -265,37 +221,11 @@
     ]).then(([desktop, mobile]) => ({ desktop, mobile }));
   }
 
-  // A3 Refinement (4), unchanged — EXIT prefetch. A passive, same-origin
-  // resource hint only: does not embed the live Games DOM, does not
-  // iframe it, does not create a second live document tree, and does not
-  // touch the A2 handoff architecture (marker + double-rAF + ordinary
-  // location.assign() below, all unchanged). Idempotent by element id, so
-  // a second Crossing within the same page lifetime (reentry) is a
-  // harmless no-op rather than a duplicate hint.
-  function prefetchGamesDocument(link, activatedAt) {
-    if (document.getElementById("a1-games-prefetch")) return;
-    const startedAt = Math.round(performance.now() - activatedAt);
-    window.__a1Instrumentation.prefetchStartedAt = startedAt;
-    log("issuing games-page prefetch hint", { href: link.href, startedAt });
-
-    const hint = document.createElement("link");
-    hint.id = "a1-games-prefetch";
-    hint.rel = "prefetch";
-    hint.href = link.href;
-    // Best-effort only: <link rel="prefetch"> load/error firing is not
-    // guaranteed across browsers, and this adapter never blocks or gates
-    // navigation on it — the ordinary same-origin navigation at
-    // Arrival-stable proceeds identically whether or not this fires.
-    hint.onload = () => {
-      window.__a1Instrumentation.prefetchCompletedAt = Math.round(performance.now() - activatedAt);
-      window.__a1Instrumentation.prefetchOutcome = "loaded";
-    };
-    hint.onerror = () => {
-      window.__a1Instrumentation.prefetchOutcome = "error";
-    };
-    document.head.appendChild(hint);
-  }
-
+  // Gate 1: the EXIT prefetch hint (prefetchGamesDocument(), A3/A4) is
+  // removed along with real navigation. This experiment never leaves
+  // Home/Crossing — there is nothing on the far side to prefetch, and
+  // issuing a same-origin resource hint for a document this Gate never
+  // navigates to would be dead weight, not a genuine EXIT refinement.
   function loadEngineScript() {
     return new Promise((resolve, reject) => {
       const script = document.createElement("script");
@@ -349,10 +279,9 @@
     });
   }
 
-  function beginInstrumentation(activatedAt, link) {
+  function beginInstrumentation(activatedAt) {
     window.__a1Instrumentation.activatedAt = activatedAt;
     let lastPhase = null, lastSubStage = null, lastArrivalPhase = null;
-    let prefetchIssued = false;
 
     function record(label) {
       const crossing = window.__mvCrossing;
@@ -378,45 +307,28 @@
       if (subStage !== lastSubStage) { record(`revealSubStage -> ${subStage}`); lastSubStage = subStage; }
       if (arrivalPhase !== lastArrivalPhase) { record(`arrivalPhase -> ${arrivalPhase}`); lastArrivalPhase = arrivalPhase; }
 
-      // A3 Refinement (4): fire the EXIT prefetch hint as early as
-      // possible — the first tick where materialPhase has left "solid" —
-      // to give the browser the maximum possible lead time (the entire
-      // remaining Crossing + Arrival duration) to warm its cache for the
-      // real /game-localization/ document before the unchanged A2
-      // handoff navigates to it. One-shot per activation; harmless no-op
-      // on a page that already has the hint element (see
-      // prefetchGamesDocument's own idempotency guard).
-      if (!prefetchIssued && phase && phase !== "solid") {
-        prefetchIssued = true;
-        prefetchGamesDocument(link, activatedAt);
-      }
-
-      if (arrivalPhase === "stable") {
-        window.__a1Instrumentation.arrivalStableAt = Math.round(performance.now() - activatedAt);
-        const markerWritten = writeHandoffMarker();
-        window.__a1Instrumentation.handoffMarkerWritten = markerWritten;
-        window.requestAnimationFrame(() => {
-          window.requestAnimationFrame(() => {
-            window.__a1Instrumentation.navigateInitiatedAt = Math.round(performance.now() - activatedAt);
-            log("navigating to target document", { href: link.href });
-            window.location.assign(link.href);
-          });
+      // Gate 1: no navigation. arrivalPhase "stable" (materialPhase
+      // already "revealed", worldMix held at 1, the new procedural
+      // atmosphere fully converged, and updateArrival()'s own
+      // arrivalOpticalMix — unchanged, still purely refraction-calming —
+      // pinned at its resting value) is this experiment's deliberate,
+      // held endpoint: the atmosphere fully settled and breathing. There
+      // is no handoff to hide in this Gate, because this Gate does not
+      // leave Home/Crossing — so there is no marker to write and nothing
+      // to navigate to. Instrumentation simply records the moment
+      // arrival stabilizes and stops polling; the frozen engine keeps
+      // rendering (ambient motion continues, per its own unchanged
+      // "revealed holds indefinitely" contract) so a tester can observe
+      // it breathe for as long as they like.
+      if (arrivalPhase === "stable" && window.__a1Instrumentation.atmosphereSettledAt === null) {
+        window.__a1Instrumentation.atmosphereSettledAt = Math.round(performance.now() - activatedAt);
+        log("atmosphere settled (Gate 1 held endpoint — no navigation)", {
+          atmosphereSettledAt: window.__a1Instrumentation.atmosphereSettledAt
         });
-        return;
       }
       window.requestAnimationFrame(tick);
     }
     window.requestAnimationFrame(tick);
-  }
-
-  function writeHandoffMarker() {
-    const marker = { version: HANDOFF_MARKER_VERSION, source: HANDOFF_MARKER_SOURCE, stableAt: Date.now() };
-    try {
-      window.sessionStorage.setItem(HANDOFF_STORAGE_KEY, JSON.stringify(marker));
-      return true;
-    } catch {
-      return false;
-    }
   }
 
   // A4 addition — replaces A1/A2/A3's bootstrap()'s capture step. Supplies
@@ -431,9 +343,9 @@
     };
   }
 
-  // A4 addition — the shared, idempotent readiness path. Both the
-  // Expertise-visibility prewarm trigger and the click handler call this
-  // same function; whichever gets there first does the work, the other
+  // A4 addition — the shared, idempotent readiness path. Both the eager
+  // prewarm trigger and the click handler call this same function;
+  // whichever gets there first does the work, the other
   // just awaits the same in-flight promise. Loads the canonical Home/Games
   // images, sets the override seam, ensures markup/stylesheet exist (both
   // already idempotent, unchanged from A1/A2/A3), and loads+initializes
@@ -466,35 +378,28 @@
     return engineReadyPromise;
   }
 
-  // A4 addition — prewarm trigger. Fires ensureEngineReady() as soon as
-  // the Expertise section (which contains the real Game Localization
-  // link) is at all visible, giving the frozen engine's own idle-time C400
-  // prewarm (schedulePrewarmC400(), unchanged/frozen) real idle time to
-  // complete before any click, on top of removing html2canvas/runtime
-  // capture from the critical path entirely. Purely additive: if this
-  // observer never fires (e.g. a visitor reaches the link some other way)
-  // the click handler's own ensureEngineReady() call below still performs
-  // the identical work on the click path itself, same as A1/A2/A3 always
-  // did minus html2canvas.
-  function armPrewarmObserver() {
-    const target = document.querySelector(PREWARM_TRIGGER_SELECTOR);
-    if (!target || typeof window.IntersectionObserver !== "function") return;
-    const observer = new IntersectionObserver((entries) => {
-      for (const entry of entries) {
-        if (entry.isIntersecting) {
-          observer.disconnect();
-          ensureEngineReady().catch((error) => {
-            // Swallow here — this is a best-effort prewarm. Any real
-            // failure surfaces identically through the click handler's
-            // own ensureEngineReady() call and its existing
-            // fallbackNavigate() path.
-            log("prewarm failed (non-fatal, click path will retry)", error && error.message ? error.message : String(error));
-          });
-          return;
-        }
-      }
-    }, { rootMargin: "0px", threshold: 0 });
-    observer.observe(target);
+  // Gate 1 — eager prewarm trigger, timing-only change from A4's
+  // Expertise-visibility-gated armPrewarmObserver(). This is approved
+  // eager ENGINE warmup timing exactly as described in the pre-
+  // implementation report: it starts the frozen engine's own idle-time
+  // initialize()/C400 prewarm as early as page load, no longer gated
+  // behind scrolling Expertise into view. It does NOT authorize, and does
+  // NOT perform, any continuous recapture/reupload of Home — Home's
+  // texture still comes from the exact same static, single-load
+  // loadHomeOverride() -> applyCanonicalHomeOverride() call inside
+  // ensureEngineReady() that already existed at 44a11a4, called at most
+  // once per page lifetime, with no html2canvas, no live DOM capture, and
+  // no repeated texImage2D/deleteTexture churn of any kind. Purely
+  // additive: if this call fails for any reason, the click handler's own
+  // ensureEngineReady() call below still performs the identical work on
+  // the click path itself, same as A4 always did.
+  function armEagerPrewarm() {
+    ensureEngineReady().catch((error) => {
+      // Swallow here — this is a best-effort prewarm. Any real failure
+      // surfaces identically through the click handler's own
+      // ensureEngineReady() call and its existing fallbackNavigate() path.
+      log("eager prewarm failed (non-fatal, click path will retry)", error && error.message ? error.message : String(error));
+    });
   }
 
   async function bootstrap(link) {
@@ -507,7 +412,7 @@
       const activateBtn = document.getElementById("mv-activate");
       const activatedAt = performance.now();
       activateBtn.click();
-      beginInstrumentation(activatedAt, link);
+      beginInstrumentation(activatedAt);
     } catch (error) {
       fallbackNavigate(link, error && error.message ? error.message : String(error));
     } finally {
@@ -528,7 +433,7 @@
     bootstrap(link);
   }, true);
 
-  armPrewarmObserver();
+  armEagerPrewarm();
 
   // Correction 3 — reentry / Back. The first passage must not permanently
   // latch this candidate: a visitor who completes a Crossing, lands on the

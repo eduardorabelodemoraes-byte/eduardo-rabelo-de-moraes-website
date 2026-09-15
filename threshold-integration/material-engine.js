@@ -641,150 +641,119 @@
       vec2 frameUv = uCoverOffset + refractedViewportUv * uCoverScale;
       vec4 homeColor = texture2D(uHome, frameUv);
 
-      // --- Crossing experiment addition (v1) ---
-      // gamesColor is sampled at the exact SAME refracted frameUv as
-      // homeColor — both "worlds" are read through the identical liquid
-      // distortion, so neither can ever read as an undistorted rectangle
-      // laid over the other, and there is no second, independently-mapped
-      // surface. This is the one new texture sample this experiment adds
-      // relative to the locked C400 shader (see NOTE.txt for the count).
-      // Sampling it unconditionally here costs nothing extra — its
-      // CONTRIBUTION to gl_FragColor is what Stage A's hard gate below
-      // holds at exactly zero, not the sample itself.
-      vec4 gamesColor = texture2D(uGames, frameUv);
-
-      // --- Crossing v2 correction (this pass) ---
-      // v1's defect, diagnosed on the real-device footage: gamesColor is
-      // sampled from a screenshot of the real Game Localization page,
-      // which is ~98% near-black background and only ~2% bright text
-      // (measured directly on the baked texture — see NOTE.txt). v1's
-      // single richness-driven threshold treated every gamesColor pixel
-      // identically regardless of what it depicted, so wherever the water
-      // was locally rich, BOTH the (rare) text pixels and the (dominant)
-      // black-background pixels reached worldBlend=1 at the same uWorldMix
-      // — and because background pixels vastly outnumber text pixels,
-      // what the eye actually registered first was "black spreading
-      // across the liquid," not "text becoming legible." That read as a
-      // different, oily substance arriving on top of C400, not C400
-      // itself becoming able to show Games.
+      // ======================================================================
+      // experiment/liquid-atmosphere-gate1 — replaces the Games-texture
+      // blend (gamesColor/gamesLuminance/baseTau/contentShift/tau/
+      // gamesTimeInput/apertureThreshold/spatialGate/worldBlend) that used
+      // to occupy this exact spot. uGames is no longer sampled or read
+      // anywhere below this point. Everything ABOVE this block — including
+      // apertureProgress/apertureEdge0/apertureEdge1/apertureField/
+      // APERTURE_BOOST/frameUv/homeColor — is UNCHANGED: the geometric
+      // "an opening is forming" signal (immersion) still comes entirely
+      // from C400's own water turbulence and still touches no color at
+      // all, exactly as before.
       //
-      // The fix reuses the gamesColor sample already taken above — no new
-      // texture, no new pass — and derives its own luminance from it, a
-      // legitimate read of what is already there (the Games screenshot is
-      // essentially binary: near-black fill, near-white glyphs), then
-      // lets that luminance shift the SAME per-pixel threshold "tau"
-      // independently of localRichness: bright (content) pixels get a
-      // markedly LOWER threshold (they reveal early, while the surface is
-      // still overwhelmingly C400-colored elsewhere), near-black
-      // (background) pixels get a markedly HIGHER threshold (their own
-      // chromatic takeover is deferred). This is the "smallest
-      // architectural correction" the instruction asked for: the existing
-      // richness-driven spatial organicness is untouched (still governs
-      // WHERE within each category the reveal happens first); only WHAT
-      // is prioritized within that structure — content before background
-      // chroma — is new. Nothing is drawn that was not already going to
-      // be drawn; only its ordering across uWorldMix changes.
-      float gamesLuminance = dot(gamesColor.rgb, vec3(0.299, 0.587, 0.114));
-      float baseTau = mix(0.55, 0.15, localRichness);
-      // --- Crossing v3.4 correction (instruction sections 4/7) ---
-      // v2's contentShift range (+0.30 background / -0.35 text, a 0.65
-      // tau-unit spread) is what let text become visible while background
-      // was still measured at exactly 0.0% contribution — diagnosed this
-      // pass (v34-t0t3-dense-diagnosis.js, run against the unmodified
-      // v3.3 build): first non-zero text at T0+296ms, first non-zero
-      // background at T0+737-787ms, a ~440-495ms gap on both devices. The
-      // instruction is explicit that the old rule is no longer compatible
-      // with the current portal architecture, but also explicit not to
-      // simply invert it into black-first (section 7) — text and
-      // background should become eligible as COORDINATED information
-      // belonging to the same discovered world, with at most a slightly
-      // different progression, not a half-second head start for one over
-      // the other. First attempt narrowed the spread to 0.65->0.20
-      // (+0.10/-0.10) on the theory that contentShift alone was the
-      // asymmetry; re-measuring THAT build (v34-contentshift-tuning-probe.js)
-      // showed the gap barely moved (still ~400-550ms) — because most of
-      // the apparent "spread" was never contentShift at all: baseTau's own
-      // richness term already spans 0.40 tau-units (0.15..0.55) on its own,
-      // dwarfing a +-0.10 contentShift. Since richness is a SPATIAL field
-      // (from the water's own slope, sampled at each pixel's screen
-      // location — see baseTau above) sampled identically regardless of
-      // whether that location happens to show text or background, it does
-      // not itself impose a text-vs-background bias; contentShift is the
-      // ONLY term that does, so it is the only lever available without
-      // touching the frozen richness/organicness mechanism. Narrowed
-      // further to 0.65->0.08 (+0.04 background / -0.04 text) and
-      // re-measured (NOTE.txt Part C): first-nonzero gap closed to
-      // ~85-130ms on both devices, and — more importantly, visible in the
-      // dense per-frame trace, not just the two crossing instants — the
-      // two curves rise together from roughly the same real-time window
-      // onward rather than one sitting at exactly 0.0% while the other is
-      // already substantial. Text keeps a small, deliberate head start
-      // (matching "may have slightly different progression curves if
-      // necessary") without the old dramatic gap. Combined with this
-      // pass's new RECOGNITION hold (section 5), no rendered frame shows
-      // text over a still-undarkened, non-opening region (validated
-      // visually, item B in NOTE.txt Part E). Nothing else about the
-      // content-priority mechanism changed: bright pixels still reveal
-      // marginally before dark ones, richness-driven spatial organicness
-      // (baseTau) is completely untouched.
-      float contentShift = mix(0.04, -0.04, gamesLuminance);
-      float tau = clamp(baseTau + contentShift, 0.15, 0.85);
-
-      // --- Crossing v3 addition: FORMATION -> FIRST SIGHT causal gate ---
-      // gamesTimeInput remaps uWorldMix's [uFormationEnd, 1] range to
-      // [0, 1] and is EXACTLY 0 for every uWorldMix <= uFormationEnd — a
-      // hard, construction-guaranteed zero (proved below), not an
-      // approximation — so gamesColor cannot contribute to gl_FragColor
-      // AT ALL while uWorldMix is within Stage A, for any pixel,
-      // regardless of tau/localRichness/gamesLuminance. The frame where
-      // uWorldMix first exceeds uFormationEnd is the exact FORMATION ->
-      // FIRST SIGHT transition event referred to in NOTE.txt.
-      float gamesTimeInput = clamp((uWorldMix - uFormationEnd) / max(1.0 - uFormationEnd, 0.0001), 0.0, 1.0);
-
-      // --- Crossing v3 addition: spatial containment (Stage B/C) ---
-      // v2's content-priority tau above already biases WHEN a pixel
-      // reveals by what it depicts (text before background); this adds
-      // WHERE: Games content must appear only inside the opening already
-      // established in Stage A, never over surrounding Home — even for a
-      // pixel whose brightness alone would otherwise let it through
-      // early. apertureThreshold starts at 0.85, matching apertureField's
-      // own upper edge above (only the tightest, already-visibly-forming
-      // aperture core qualifies at the very start of Stage B), and slides
-      // to -0.20 as gamesTimeInput -> 1, so by the end of the ramp every
-      // pixel qualifies — required for the worldMix=1 boundary guarantee
-      // below. This is the spatial expression of "the opening ...
-      // progressively ... while it expands."
-      float apertureThreshold = mix(0.85, -0.20, gamesTimeInput);
-      float spatialGate = smoothstep(apertureThreshold - 0.15, apertureThreshold + 0.15, localRichness);
-
-      float worldBlend = smoothstep(tau - 0.15, tau + 0.15, gamesTimeInput) * spatialGate;
-
-      // Boundary guarantee, re-derived for v3 (same proof shape as v1/v2,
-      // now composed over gamesTimeInput and spatialGate as well as tau):
+      // Gate 1 scope: the canvas is the only visible surface. There is no
+      // second texture, no DOM capture, no iframe. The old Games texture
+      // sample is replaced by a fully procedural atmosphere color, built
+      // from the same apertureField/localRichness spatial mask that used
+      // to gate worldBlend — so the SHAPE of the transition (an opening
+      // that grows from the water's own structure) is preserved exactly;
+      // only WHAT fills that opening changes, from a sampled screenshot to
+      // a native-shader atmosphere grounded in Stable Games V8's actual
+      // resting palette (game-localization/styles.css :root defaults —
+      // --bg:#050510, --cyan:#18e0ff at cyanA .16, --violet:#c026f5 at a
+      // near-residual .05, no amber, and a single plain-white light point
+      // echoing #prologue .spark). "Menos é mais": this is the calm,
+      // pre-narrative rest state V8 breathes in before any materialization
+      // begins, not a more spectacular invention of it.
       //
-      // At uWorldMix=0: gamesTimeInput=0 exactly (clamped). tau is
-      // clamped to [0.15, 0.85], so tau-0.15 >= 0.00 = gamesTimeInput —
-      // smoothstep(edge0>=x, edge1, x) with x<=edge0 returns exactly 0,
-      // for every possible tau. worldBlend=0*spatialGate=0 regardless of
-      // spatialGate's own value. Also apertureProgress=0 at uWorldMix=0,
-      // so totalRefractionPixels==refractionPixels exactly — frame zero
-      // is pixel-identical to the unmodified C400 refraction, matching
-      // validation item 1 (frame zero must match normal Home) by
-      // construction, unchanged from v1/v2.
+      // atmosphereTimeInput remaps uWorldMix's [uFormationEnd, 1] range to
+      // [0, 1] and is EXACTLY 0 for every uWorldMix <= uFormationEnd — the
+      // same hard, construction-guaranteed zero the old gamesTimeInput
+      // proved — so the atmosphere cannot contribute to gl_FragColor AT
+      // ALL while uWorldMix is within Stage A (immersion), for any pixel.
+      float atmosphereTimeInput = clamp((uWorldMix - uFormationEnd) / max(1.0 - uFormationEnd, 0.0001), 0.0, 1.0);
+
+      // Reuses apertureField's own spatial mask (localRichness-driven,
+      // frozen above) exactly as the old spatialGate did: the atmosphere
+      // becomes visible only inside the opening already established by
+      // Stage A, never bleeding over surrounding Home-still-forming
+      // regions. Same threshold slide (0.85 -> -0.20) and edge width
+      // (+-0.15) as before, so the spatial choreography is unchanged —
+      // only the substance revealed through it is new.
+      const float ATMOSPHERE_CONVERGENCE_SPLIT = 0.4;
+
+      float atmosphereOnset = smoothstep(0.0, 0.10, atmosphereTimeInput);
+      float atmosphereThreshold = mix(0.85, -0.20, atmosphereTimeInput);
+      float atmosphereCoverage = smoothstep(atmosphereThreshold - 0.15, atmosphereThreshold + 0.15, localRichness);
+      float atmosphereBlend = atmosphereOnset * atmosphereCoverage;
+
+      // Base: --bg:#050510 in linear-ish shader space (same sRGB hex ->
+      // 0..1 conversion used elsewhere in this file).
+      vec3 atmosphereBase = vec3(0.0196, 0.0196, 0.0627);
+
+      // Discreet cyan presence (--cyan:#18e0ff, target intensity ~0.16,
+      // matching --cyanA's real resting value), positioned in vUv (not
+      // frameUv) so it reads as stable ambient light rather than warped
+      // reflection — distinguishing the emerging atmosphere from Home's
+      // own refracted surface.
+      // Falloff distances use the same aspect correction main() already
+      // computes above (uResolution.x/uResolution.y) so these glows read
+      // as round on any viewport, portrait phones included, rather than
+      // stretching into an oval the way a raw vUv-space distance would.
+      vec2 cyanCenter = vec2(0.30, 0.32);
+      vec2 cyanDelta = (vUv - cyanCenter) * vec2(aspect, 1.0);
+      float cyanFalloff = exp(-dot(cyanDelta, cyanDelta) * 2.4);
+      float cyanIntensity = 0.16 * smoothstep(0.08, ATMOSPHERE_CONVERGENCE_SPLIT, atmosphereTimeInput);
+      vec3 cyanColor = vec3(0.094, 0.878, 1.0);
+      vec3 atmosphere = 1.0 - (1.0 - atmosphereBase) * (1.0 - cyanColor * cyanFalloff * cyanIntensity);
+
+      // Near-residual violet (--violet:#c026f5, target intensity ~0.05 —
+      // deliberately restrained, arriving later than cyan).
+      vec2 violetCenter = vec2(0.72, 0.78);
+      vec2 violetDelta = (vUv - violetCenter) * vec2(aspect, 1.0);
+      float violetFalloff = exp(-dot(violetDelta, violetDelta) * 2.1);
+      float violetIntensity = 0.05 * smoothstep(0.18, 0.85, atmosphereTimeInput);
+      vec3 violetColor = vec3(0.753, 0.149, 0.961);
+      atmosphere = 1.0 - (1.0 - atmosphere) * (1.0 - violetColor * violetFalloff * violetIntensity);
+
+      // Vignette, matching V8's own .vignette (opacity 0.4 at rest).
+      float vignette = smoothstep(0.92, 0.30, length(vUv - 0.5));
+      atmosphere *= mix(0.74, 1.0, vignette);
+
+      // A single plain-white light point, echoing #prologue .spark (pure
+      // white, not amber) — the only "first luminous presence," arriving
+      // last, once cyan/violet are already established.
+      vec2 sparkCenter = vec2(0.5, 0.46);
+      vec2 sparkDelta = (vUv - sparkCenter) * vec2(aspect, 1.0);
+      float sparkFalloff = exp(-dot(sparkDelta, sparkDelta) * 240.0);
+      float sparkIntensity = 0.85 * smoothstep(ATMOSPHERE_CONVERGENCE_SPLIT, 0.85, atmosphereTimeInput);
+      atmosphere += vec3(1.0) * sparkFalloff * sparkIntensity;
+
+      vec4 atmosphereColor = vec4(atmosphere, 1.0);
+
+      // Boundary guarantee (same proof shape as the block this replaces):
       //
-      // At uWorldMix=1: gamesTimeInput=1 exactly (uFormationEnd<1). tau
-      // <= 0.85, so tau+0.15 <= 1.00 = gamesTimeInput — smoothstep(edge0,
-      // edge1<=x, x) with x>=edge1 returns exactly 1, for every possible
-      // tau, so the first factor is 1. apertureThreshold at
-      // gamesTimeInput=1 is -0.20, so spatialGate's low edge is -0.35 —
-      // since localRichness is itself clamped to [0, 1], every pixel's
-      // localRichness >= 0 >= -0.35+0.15... explicitly: edge1 =
-      // apertureThreshold+0.15 = -0.05, and localRichness >= 0 >= -0.05,
-      // so smoothstep returns exactly 1 for every pixel regardless of its
-      // own richness value. worldBlend=1*1=1 for every pixel — pure
-      // Games, matching the held endpoint by construction, unchanged from
-      // v1/v2.
-      gl_FragColor = mix(homeColor, gamesColor, worldBlend);
+      // At uWorldMix=0: atmosphereTimeInput=0 exactly (clamped), so
+      // atmosphereOnset=smoothstep(0.0,0.10,0)=0 exactly.
+      // atmosphereBlend=0*atmosphereCoverage=0 regardless of coverage's
+      // own value. Also apertureProgress=0 at uWorldMix=0, so
+      // totalRefractionPixels==refractionPixels exactly — frame zero is
+      // pixel-identical to the unmodified C400 refraction and to homeColor
+      // alone, matching the frozen-segment guarantee.
+      //
+      // At uWorldMix=1: atmosphereTimeInput=1 exactly (uFormationEnd<1),
+      // so atmosphereOnset=smoothstep(0.0,0.10,1)=1 exactly.
+      // atmosphereThreshold at atmosphereTimeInput=1 is -0.20, so
+      // atmosphereCoverage's low edge is -0.35 — since localRichness is
+      // itself clamped to [0,1], every pixel's localRichness >= 0 >=
+      // -0.35+0.15... explicitly: edge1 = atmosphereThreshold+0.15 =
+      // -0.05, and localRichness >= 0 >= -0.05, so smoothstep returns
+      // exactly 1 for every pixel regardless of its own richness value.
+      // atmosphereBlend=1*1=1 for every pixel — pure atmosphere, the held
+      // endpoint this Gate delivers.
+      gl_FragColor = mix(homeColor, atmosphereColor, atmosphereBlend);
     }
   `;
 
@@ -1002,7 +971,7 @@
   // segment's own clock) — this is the "concrete perceptual/
   // implementation boundary" section 3 of the instruction asks this pass
   // to define and report.
-  let revealSubStage = "formation"; // v3.4: "formation" | "recognition" | "discovery" | "passage" — meaningful only while materialPhase === "revealing". Was "formation" | "transfer" through v3.3; "transfer" is now split into three named, independently-clocked segments (see RECOGNITION_DURATION/DISCOVERY_DURATION/PASSAGE_DURATION above).
+  let revealSubStage = "immersion"; // Gate 1: "immersion" | "immersion-hold" | "infusion" | "convergence" — meaningful only while materialPhase === "revealing". Renamed from the abandoned "formation" | "recognition" | "discovery" | "passage" vocabulary; the four independently-clocked segments and their dispatch logic are otherwise unchanged.
   let formationToTransferAt = 0;
 
   // --- Games Arrival Experiment 01 additions ---
@@ -2144,7 +2113,7 @@
     // time — the same determinism guarantee v1's own worldMix/
     // worldPhaseStartedAt reset already provided, now extended to cover
     // PART B's new state.
-    revealSubStage = "formation";
+    revealSubStage = "immersion";
     formationToTransferAt = 0;
     // Games Arrival Experiment 01 addition: clear Arrival's own state
     // alongside the pre-existing revealSubStage/formationToTransferAt
@@ -2219,7 +2188,7 @@
       if (heldFor >= WORLD_HOLD_DURATION) {
         materialPhase = "revealing";
         worldPhaseStartedAt = now; // re-anchor: now marks the start of FORMATION's own clock
-        revealSubStage = "formation"; // v3.1 — explicit, though already this value from reset()/init
+        revealSubStage = "immersion"; // explicit, though already this value from reset()/init
         setStatus("liquid", "revealing");
       }
       return;
@@ -2235,7 +2204,7 @@
     // worldMix<=uFormationEnd, worldBlend===1 at worldMix===1) still holds
     // — only HOW worldMix's value is produced over time changed; the
     // shader that consumes it is byte-identical to v3.
-    if (materialPhase === "revealing" && revealSubStage === "formation") {
+    if (materialPhase === "revealing" && revealSubStage === "immersion") {
       const elapsed = now - worldPhaseStartedAt;
       // Linear, not eased: constant nonzero velocity for FORMATION's
       // entire duration, deliberately — smoothstep's own slow start is
@@ -2248,7 +2217,7 @@
       worldMix = STAGE_A_FORMATION_END * progress;
       if (elapsed >= FORMATION_DURATION) {
         worldMix = STAGE_A_FORMATION_END;
-        revealSubStage = "recognition"; // v3.4: was "transfer" through v3.3 — see the segment split below
+        revealSubStage = "immersion-hold"; // sub-phase of immersion — still zero color contribution
         formationToTransferAt = now; // T0: the FORMATION -> FIRST SIGHT event, still the same timestamp semantics as before
         worldPhaseStartedAt = now; // re-anchor: now marks the start of RECOGNITION's own, independent clock
         setStatus("liquid", "revealing"); // status text unchanged — "revealing" still covers all of Stage B/C externally
@@ -2268,17 +2237,17 @@
     // DISCOVERY_DURATION/PASSAGE_DURATION/DISCOVERY_GAMES_TIME_SPLIT
     // constants above for the full rationale. MATERIAL_SHADER itself is
     // NOT touched by this segment split — worldMix and its derived
-    // gamesTimeInput remain exactly the values the shader already expects
-    // and already has proven boundary guarantees for; only HOW worldMix
-    // reaches those values over time changes, same as every prior pacing
-    // correction in this lineage (v3.1, v3.3).
-    if (materialPhase === "revealing" && revealSubStage === "recognition") {
+    // atmosphereTimeInput remain exactly the values the shader already
+    // expects and already has proven boundary guarantees for; only HOW
+    // worldMix reaches those values over time changes, same as every
+    // prior pacing correction in this lineage.
+    if (materialPhase === "revealing" && revealSubStage === "immersion-hold") {
       const elapsed = now - worldPhaseStartedAt;
       // worldMix does not move at all during RECOGNITION — held EXACTLY
       // at STAGE_A_FORMATION_END, which by MATERIAL_SHADER's own existing,
-      // unchanged boundary proof means gamesTimeInput===0 and
-      // worldBlend===0 for every pixel, for this entire interval — Games
-      // contribution is zero by construction, not by a new gate. The
+      // unchanged boundary proof means atmosphereTimeInput===0 and
+      // atmosphereBlend===0 for every pixel, for this entire interval —
+      // atmosphere contribution is zero by construction, not by a new gate. The
       // water simulation (updateWater()/ambientWater()) is NOT paused —
       // it is driven by motionTime/real time independently of worldMix —
       // so the aperture keeps visibly evolving throughout, per
@@ -2286,51 +2255,49 @@
       // organically... but Games contribution must remain zero").
       worldMix = STAGE_A_FORMATION_END;
       if (elapsed >= RECOGNITION_DURATION) {
-        revealSubStage = "discovery";
-        worldPhaseStartedAt = now; // re-anchor: DISCOVERY's own independent clock starts now (T1)
+        revealSubStage = "infusion";
+        worldPhaseStartedAt = now; // re-anchor: INFUSION's own independent clock starts now (T1)
       }
       return;
     }
 
-    if (materialPhase === "revealing" && revealSubStage === "discovery") {
+    if (materialPhase === "revealing" && revealSubStage === "infusion") {
       const elapsed = now - worldPhaseStartedAt;
       // Quadratic ease-IN (progress^2): near-zero velocity right at T1,
       // accelerating toward T2 — the deliberate "contained, gradual,
-      // still subordinate to Home" first-sight beat instruction section 6
-      // asks for. Maps DISCOVERY's own progress 0->1 onto the
-      // gamesTimeInput range [0, DISCOVERY_GAMES_TIME_SPLIT] (0.4) — a
-      // gamesTimeInput value this pass's own diagnosis of the unchanged
-      // shader math (v3.3's checkpoint table) confirmed still keeps
+      // still subordinate to Home" first-sight beat. Maps INFUSION's own
+      // progress 0->1 onto the atmosphereTimeInput range
+      // [0, DISCOVERY_GAMES_TIME_SPLIT] (0.4) — a value the unchanged
+      // shader math's own checkpoint table confirmed still keeps
       // home-contribution at ~90% on both devices, i.e. genuinely small
       // and contained, not an arbitrary cutoff.
       const rawProgress = Math.min(Math.max(elapsed / DISCOVERY_DURATION, 0), 1);
       const eased = rawProgress * rawProgress; // ease-in
-      const gamesTimeInput = eased * DISCOVERY_GAMES_TIME_SPLIT;
-      worldMix = STAGE_A_FORMATION_END + (1 - STAGE_A_FORMATION_END) * gamesTimeInput;
+      const atmosphereTimeInput = eased * DISCOVERY_GAMES_TIME_SPLIT;
+      worldMix = STAGE_A_FORMATION_END + (1 - STAGE_A_FORMATION_END) * atmosphereTimeInput;
       if (elapsed >= DISCOVERY_DURATION) {
-        revealSubStage = "passage";
-        worldPhaseStartedAt = now; // re-anchor: PASSAGE's own independent clock starts now (T2)
+        revealSubStage = "convergence";
+        worldPhaseStartedAt = now; // re-anchor: CONVERGENCE's own independent clock starts now (T2)
       }
       return;
     }
 
-    if (materialPhase === "revealing" && revealSubStage === "passage") {
+    if (materialPhase === "revealing" && revealSubStage === "convergence") {
       const elapsed = now - worldPhaseStartedAt;
       // Quadratic ease-OUT (1-(1-progress)^2): fast at T2 (continuing
-      // DISCOVERY's exit velocity — "rate of transfer may increase
-      // organically"), decelerating toward T3 — "late passage should
-      // settle rather than snap," per instruction section 10. Maps
-      // PASSAGE's own progress 0->1 onto the REMAINING gamesTimeInput
-      // range [DISCOVERY_GAMES_TIME_SPLIT, 1.0].
+      // INFUSION's exit velocity), decelerating toward T3 — late
+      // convergence should settle rather than snap. Maps CONVERGENCE's
+      // own progress 0->1 onto the REMAINING atmosphereTimeInput range
+      // [DISCOVERY_GAMES_TIME_SPLIT, 1.0].
       const rawProgress = Math.min(Math.max(elapsed / PASSAGE_DURATION, 0), 1);
       const inv = 1 - rawProgress;
       const eased = 1 - inv * inv; // ease-out
-      const gamesTimeInput = DISCOVERY_GAMES_TIME_SPLIT + (1 - DISCOVERY_GAMES_TIME_SPLIT) * eased;
-      worldMix = STAGE_A_FORMATION_END + (1 - STAGE_A_FORMATION_END) * gamesTimeInput;
+      const atmosphereTimeInput = DISCOVERY_GAMES_TIME_SPLIT + (1 - DISCOVERY_GAMES_TIME_SPLIT) * eased;
+      worldMix = STAGE_A_FORMATION_END + (1 - STAGE_A_FORMATION_END) * atmosphereTimeInput;
       if (elapsed >= PASSAGE_DURATION) {
         worldMix = 1;
         materialPhase = "revealed";
-        setStatus("liquid", "revealed (holding)");
+        setStatus("liquid", "revealed (atmosphere holding)");
       }
       return;
     }
@@ -3273,7 +3240,7 @@
         }),
         // v3.1 additions — internal ground truth for the FORMATION ->
         // FIRST SIGHT event, for verification/reporting.
-        getRevealSubStage: () => revealSubStage, // v3.4: "formation" | "recognition" | "discovery" | "passage" — meaningful only while getPhase()==="revealing"
+        getRevealSubStage: () => revealSubStage, // Gate 1: "immersion" | "immersion-hold" | "infusion" | "convergence" — meaningful only while getPhase()==="revealing"
         getFormationToTransferAt: () => formationToTransferAt, // performance.now() timestamp of the last FORMATION -> FIRST SIGHT event, 0 if not yet reached this activation
         hideControls: () => { if (controlsEl) controlsEl.classList.add("mv-controls-hidden"); },
         showControls: () => { if (controlsEl) controlsEl.classList.remove("mv-controls-hidden"); },
