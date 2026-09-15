@@ -17,6 +17,14 @@
   display: block;
   opacity: 0;
   pointer-events: none;
+  /* continuous-river redesign: the canvas's first visible frame is
+     already an exact, zero-distortion copy of Home (see
+     material-engine.js's activate()/CLICK_SETTLE_DURATION), so this
+     transition has nothing to visually cross-fade between — it exists
+     only as defensive insurance against any real-device discrepancy
+     between the canonical capture and the live DOM at the instant of
+     handoff, kept short enough to read as "immediate," not as a fade. */
+  transition: opacity 140ms ease-out;
 }
 
 #mv-canvas.is-visible {
@@ -43,12 +51,20 @@ body.mv-active > footer {
 
 /* iOS-safe scroll lock: overflow:hidden alone does not reliably stop
    rubber-band scroll on iOS Safari, so body is additionally pinned via
-   position:fixed with its negative scroll offset preserved in `top`. */
+   position:fixed with its negative scroll offset preserved in `top`.
+   scrollbar-gutter:stable (continuous-river redesign) keeps the desktop
+   scrollbar's own width reserved even once overflow:hidden removes the
+   functional scrollbar — without it, removing a non-overlay scrollbar
+   (the common case on Windows/EliteBook-class hardware) shifts the whole
+   page a few pixels wider at the exact instant the canvas takes over,
+   one plausible source of the "jolt right after clicking" real-device
+   report. Unsupported browsers simply keep the old behavior. */
 html.mv-scroll-locked,
 html.mv-scroll-locked body {
   overflow: hidden !important;
   height: 100% !important;
   overscroll-behavior: none;
+  scrollbar-gutter: stable;
 }
 
 html.mv-scroll-locked body {

@@ -122,175 +122,66 @@
     return activeTextureKey === "mobile" ? DISPLAY_AMPLITUDE_CSS_PX_MOBILE : DISPLAY_AMPLITUDE_CSS_PX_DESKTOP;
   }
 
-  const LIQUID_ENGAGE_DURATION = 1050; // ms — recovered engine's own value, unchanged this pass
-
-  // --- Crossing experiment (this pass) additions ---
-  // Both durations below are explicitly PROVISIONAL — first-experiment
-  // placeholders, not tuned/final values (per instruction: "Do not invent
-  // a new final Crossing duration yet... treat it as experimental").
+  // ==========================================================================
+  // experiment/continuous-river — full redesign of the post-liquid
+  // choreography, on real-device feedback: the previous Crossing designs
+  // (FORMATION/RECOGNITION/DISCOVERY/PASSAGE, then Gate 1's rename of the
+  // same four stages to immersion/immersion-hold/infusion/convergence)
+  // compressed several distinct transformations into a few seconds — each
+  // individual beat was too short to actually be perceived, particularly
+  // the liquid-hold pause (350ms, explicitly marked "provisional" in the
+  // code it replaces) between "Home has become liquid" and "the liquid
+  // starts becoming something else." That four-stage split, and the
+  // Stage-A aperture/displacement-boost mechanism it depended on, existed
+  // to solve a specific legibility problem (giving Stage A's necessarily
+  // subtle, color-free signal a dedicated moment of its own inside an
+  // otherwise-compressed ramp). Once every beat gets a real, generous
+  // amount of time, that problem doesn't recur, so this pass drops both:
+  // one continuous, eased worldMix ramp (see updateMaterialTransition()'s
+  // "revealing" branch) now carries the whole liquid -> atmosphere
+  // evolution, and MATERIAL_SHADER's richness-gated spatial mask (see
+  // atmosphereCoverage below) is what makes color still arrive unevenly —
+  // in the water's own most-turbulent regions first — rather than a
+  // separate time-split manufacturing that same quality.
   //
-  // WORLD_HOLD_DURATION: a brief pause once materialPhase first reaches
-  // "liquid" (liquidMix===1), before the Games reveal begins. Short and
-  // deliberate: this is NOT a destination in itself (per instruction,
-  // "This is not a pause or destination. It is the continuity point from
-  // which the next transformation begins.") — just long enough that the
-  // fully-liquid Home state is unambiguously perceived before the surface
-  // starts carrying new content.
-  const WORLD_HOLD_DURATION = 350; // ms — provisional
-
-  // WORLD_REVEAL_DURATION: how long the Home->Games worldMix ramp takes.
-  // Derived from docs/the-choreography-of-the-crossing.md's authoritative
-  // 5-phase, 5.0s timeline: Phase III "Transformation" (1200-2800ms, the
-  // doc's own "richest perceptual state") + Phase IV "Passage" (2800-
-  // 4200ms, "no longer observing a transforming page") = 1.6s + 1.4s =
-  // 3.0s. That pairing is this experiment's reasoning for treating those
-  // two phases together as "the interval during which content itself
-  // changes," distinct from Phase I/II (approach/destabilization, already
-  // covered by the unchanged LIQUID_ENGAGE_DURATION acquisition) and
-  // Phase V (Arrival/solidification, explicitly NOT implemented here).
-  // Reported in full in NOTE.txt; not implemented as several tuned
-  // variants per instruction.
-  // --- Crossing v3.1 addition (this pass) — PART B: independent temporal
-  // progressions for FORMATION vs. FIRST SIGHT/TRANSFER. ---
+  // The five constants below are the whole of the new timeline. Each is a
+  // deliberate perceptual beat the real-device report asked for, not an
+  // optimization target:
   //
-  // v3 drove the entire worldMix ramp (Stage A + B + C together) from ONE
-  // shared easeMaterial() smoothstep over a single WORLD_REVEAL_DURATION,
-  // with STAGE_A_FORMATION_END merely marking a THRESHOLD partway along
-  // that one curve. Diagnosed cause of the "passage feels too fast"
-  // real-device report: smoothstep's rate of change is 6c(1-c) for raw
-  // progress c in [0,1] — zero at both ends, maximum at c=0.5. Stage A's
-  // threshold (worldMix<=0.30) is crossed at raw progress c ~= 0.363 (the
-  // point where c*c*(3-2c)=0.30), where the curve's velocity is already
-  // ~92% of its peak. So Stage A consumed the curve's slow beginning,
-  // and Stage B/C inherited a curve already near maximum velocity right
-  // at its own start — a jarring, un-diagnosable-in-real-time
-  // acceleration exactly at the FORMATION -> FIRST SIGHT handoff, on top
-  // of Stage A's own necessarily-subtle (no darkening, per instruction)
-  // signal reading as closer to a dead hold than a developing motion.
+  //   CLICK_SETTLE_DURATION — activate() makes the canvas visible and
+  //   hides the live DOM in the same synchronous tick this pause begins.
+  //   The canvas is already showing an exact, zero-distortion copy of
+  //   Home at that instant (refractionPixels below is scaled by
+  //   liquidMix, still 0 here), so nothing on screen actually changes —
+  //   this pause exists only so the click's handoff and the liquid's
+  //   first visible motion read as two separate, legible beats instead
+  //   of one compressed instant ("immediate but smooth response to
+  //   click").
   //
-  // The fix: FORMATION and FIRST SIGHT/TRANSFER are now driven by two
-  // genuinely separate clocks and separate easing functions inside
-  // updateMaterialTransition()'s "revealing" branch below — not two
-  // thresholds sliced from one shared curve. Each one's own progress
-  // variable starts at its own t=0 with its own velocity profile:
+  //   LIQUID_ENGAGE_DURATION — Home's surface visibly liquefies. Longer
+  //   than the original Crossing's 1050ms, which real-device testing
+  //   found read as an abrupt snap rather than a progressive change.
   //
-  //   FORMATION_DURATION (this stage's own clock) uses a LINEAR ramp
-  //   (constant, nonzero velocity throughout) — chosen specifically so
-  //   Stage A has no near-zero-velocity opening stretch (smoothstep's
-  //   own slow start is exactly the kind of "dead hold where nothing
-  //   happens" the instruction warns against) and remains continuously,
-  //   legibly evolving for its entire duration, by construction.
+  //   LIQUID_HOLD_DURATION — liquidMix has reached 1: the material
+  //   exists, fully formed, doing nothing but breathing (the water
+  //   simulation keeps running; worldMix/color do not move). This is the
+  //   beat the real-device report named directly: "there is not enough
+  //   time to understand or appreciate the page becoming liquid."
   //
-  //   REVEAL_TRANSFER_DURATION (its own, separately-anchored clock,
-  //   started fresh the instant FORMATION completes) reuses the SAME
-  //   easeMaterial() smoothstep v1/v2/v3 already used — but now scoped
-  //   to only this stage's own duration, so it starts at zero velocity
-  //   (a gentle onset for first-sight content, not a snap-in at whatever
-  //   speed Stage A happened to end at) and eases back down approaching
-  //   the held "revealed" endpoint.
+  //   INFUSION_DURATION — the single, continuous worldMix ramp 0->1: the
+  //   liquid's own color and depth evolve into Games' atmosphere (see
+  //   MATERIAL_SHADER below).
   //
-  // Total duration: 3000ms (v1/v2/v3, unchanged) -> 3300ms, a modest
-  // (10%) increase, not an arbitrary lengthening — redistribution and
-  // independent easing were tried first (they are the entire mechanism
-  // above); the increase reflects that Stage A's signal is inherently
-  // more subtle than Stage B/C's (no color change, displacement only, by
-  // this pass's own frozen constraint) and so benefits from a somewhat
-  // larger, not merely differently-shaped, share of the total. See
-  // NOTE.txt for the full perceptual justification and the frame-by-frame
-  // validation this produced.
-  const FORMATION_DURATION = 1300; // ms — Stage A's own independent duration
-
-  // --- Crossing v3.4 correction (T0-T3 choreography) ---
-  // Diagnosed BEFORE this change (defect-analysis/v34-t0t3-dense-diagnosis.js,
-  // run against the unmodified v3.3 candidate): the old single "transfer"
-  // clock put the first non-zero Games contribution at only ~296ms after
-  // T0 (FORMATION complete) on BOTH devices, with zero dedicated interval
-  // in which a viewer could register "an opening has formed" before any
-  // Games content appeared — exactly the real-device complaint ("Crossing
-  // rápido... o texto ainda chega antes da abertura do portal"). The old
-  // REVEAL_TRANSFER_DURATION (2000ms, one clock, one linear ramp — v3.3's
-  // own fix for a DIFFERENT defect, pacing unevenness, which remains
-  // correct and is preserved in spirit below) is replaced by THREE
-  // independently-clocked, independently-eased segments, matching this
-  // codebase's own established pattern of "each named perceptual stage
-  // gets its own clock" (FORMATION vs. the old single TRANSFER stage was
-  // the v3.1 precedent; this pass extends the same idea one level deeper).
-  //
-  //   RECOGNITION (T0->T1): worldMix HOLDS EXACTLY at STAGE_A_FORMATION_END
-  //   for this whole interval — not a new gate, but a direct reuse of the
-  //   EXISTING, already-proven algebraic guarantee that
-  //   worldBlend===0 for every pixel whenever uWorldMix<=uFormationEnd
-  //   (see MATERIAL_SHADER's own boundary-guarantee comment, unchanged).
-  //   Games contribution is therefore exactly zero throughout, by
-  //   construction, with no new shader logic. The water simulation itself
-  //   keeps running throughout (ambientWater()/updateWater() are functions
-  //   of real time and are never paused) — so the aperture keeps visibly
-  //   "breathing" during this hold, per instruction section 5, even though
-  //   worldMix itself does not advance.
-  //
-  //   DISCOVERY (T1->T2): worldMix advances from STAGE_A_FORMATION_END
-  //   toward DISCOVERY_GAMES_TIME_SPLIT (a gamesTimeInput fraction, not a
-  //   worldMix value — converted below), using a quadratic EASE-IN
-  //   (progress^2: near-zero velocity at T1, accelerating toward T2) —
-  //   deliberately mirrors FORMATION's own "give the subtle/contained
-  //   signal room to be noticed" logic, but inverted in shape (FORMATION
-  //   needed constant velocity to avoid ANY dead stretch; DISCOVERY
-  //   deliberately WANTS a slow, readable opening beat right after
-  //   RECOGNITION, then gathers pace as it hands off to PASSAGE).
-  //   DISCOVERY_GAMES_TIME_SPLIT=0.4 was chosen from this pass's own
-  //   diagnosis of the EXISTING (frozen, unchanged) shader math: at
-  //   gamesTimeInput=0.4, v3.3's own checkpoint table already showed
-  //   home-contribution still at 89.7% (desktop) / 90.9% (iphone) — i.e.
-  //   Games genuinely stays small and subordinate up to this point, so it
-  //   is a natural, evidence-based place to call "discovery has happened,
-  //   commitment begins," not an arbitrary split.
-  //
-  //   PASSAGE (T2->T3): worldMix continues from that same point to 1.0,
-  //   using a quadratic EASE-OUT (1-(1-progress)^2: fast at T2, continuing
-  //   DISCOVERY's momentum, decelerating toward T3) — produces the
-  //   "settle rather than snap" ending the instruction asks for, while
-  //   still being the fastest-moving segment overall (matching "the
-  //   middle of the passage may move faster than FIRST SIGHT").
-  //
-  // Total T1->T3 (DISCOVERY_DURATION + PASSAGE_DURATION) = 3200ms, inside
-  // the instructed 3.0-4.0s design range; RECOGNITION_DURATION=400ms is
-  // inside the instructed 300-500ms range. Both were validated (not just
-  // assumed) after implementation — see NOTE.txt Part C for the
-  // re-measured, after-the-fact T0/T1/T2/T3 timing and the checkpoint
-  // captures confirming each segment reads as intended.
-  const RECOGNITION_DURATION = 400; // ms — T0->T1, Games held at exactly zero
-  const DISCOVERY_DURATION = 1400; // ms — T1->T2, contained/subordinate first sight
-  const PASSAGE_DURATION = 1800; // ms — T2->T3, commitment, settles rather than snaps
-  const DISCOVERY_GAMES_TIME_SPLIT = 0.4; // gamesTimeInput value reached at T2 — see comment above
-  const REVEAL_TRANSFER_DURATION = RECOGNITION_DURATION + DISCOVERY_DURATION + PASSAGE_DURATION; // 3600ms — derived, reported to __mvCrossing.getWorldDurations() as before
-  const WORLD_REVEAL_DURATION = FORMATION_DURATION + REVEAL_TRANSFER_DURATION; // 4900ms total — derived, not independently set
-
-  // --- Games Arrival Experiment 01 addition ---
-  // ARRIVAL_DURATION is NOT derived from any physical decay measured in
-  // the water field — the T3 diagnosis (defect-analysis/t3-diagnosis.js)
-  // found the field does NOT naturally settle on any Arrival-relevant
-  // timescale (ambientSlopeMagnitude.rms and impactSlopeMagnitude.rms are
-  // both still comparable in magnitude, and impactSlopeMagnitude.rms
-  // actually INCREASES over a 4.2s post-T3 observation window on both
-  // desktop and iphone — see NOTE.txt Part A). There is nothing physical
-  // to time this against; the duration is therefore an external, artistic
-  // choice, made within the instructed 1.5-3.0s exploration range and
-  // justified instead by checkpoint/typography readability (see NOTE.txt
-  // Part D for the after-the-fact validation of this choice).
-  const ARRIVAL_DURATION = 2200; // ms — T3 -> Arrival-stable; see comment above
-
-  // --- Crossing v3 addition, retained unchanged in v3.1 ---
-  // STAGE_A_FORMATION_END is still the exact worldMix value at which
-  // FORMATION completes and FIRST SIGHT begins, still passed to the
-  // shader as uFormationEnd, still the boundary MATERIAL_SHADER's hard
-  // gate and spatial containment math key off — none of that shader-side
-  // logic changed in v3.1 (see PART B's own note in updateMaterialTransition()
-  // for what DID change: how worldMix's JS-side value reaches this point
-  // over time, not what the shader does with it once it arrives). 0.30
-  // continues to mean "30% of the way from Home-liquid to Games-liquid,"
-  // now reached via FORMATION_DURATION's own linear clock rather than as
-  // a threshold along a shared curve.
-  const STAGE_A_FORMATION_END = 0.30;
+  //   ATMOSPHERE_HOLD_DURATION — a short, deliberate hold at the fully
+  //   converged atmosphere before real navigation fires (see
+  //   phase-a1-integration.js) — long enough to register arrival, not
+  //   long enough to become a second indefinite destination the way
+  //   Gate 1's held endpoint was.
+  const CLICK_SETTLE_DURATION = 140; // ms
+  const LIQUID_ENGAGE_DURATION = 1700; // ms
+  const LIQUID_HOLD_DURATION = 1700; // ms
+  const INFUSION_DURATION = 2600; // ms
+  const ATMOSPHERE_HOLD_DURATION = 700; // ms
 
   const SIMULATION_LONG_SIDE = 256;
   const SIMULATION_MIN_SIDE = 96;
@@ -407,27 +298,6 @@
     // touched.
     uniform sampler2D uGames;
     uniform float uWorldMix;
-    // Crossing v3 addition. The Stage A/Stage B+C boundary along the
-    // uWorldMix ramp (STAGE_A_FORMATION_END on the JS side, same numeric
-    // value, passed through as a uniform so the two can never drift
-    // apart). Read only in the two blocks marked "Crossing v3 addition"
-    // below — nothing above them (the water simulation read, the
-    // ambient field, the base C400 refraction) is touched.
-    uniform float uFormationEnd;
-
-    // --- Games Arrival Experiment 01 addition ---
-    // A single new multiplicative factor on the OPTICAL response only
-    // (see where it is applied, below, at boundedSlope) — not on
-    // canonical amplitude, not on liquidMix, not on totalSlope itself
-    // (so it never touches localRichness/apertureField/spatialGate/
-    // worldBlend, all of which are Crossing-owned and already fully
-    // saturated to their T3 endpoint values by the time this can ever be
-    // < 1 — Arrival never begins before materialPhase==="revealed", i.e.
-    // never before uWorldMix has already reached and held at 1). Defaults
-    // to 1.0 (a pure no-op) for the ENTIRE approved Crossing sequence;
-    // only Arrival-specific JS (added below, after T3) ever sets it below
-    // 1.0. This is the ONLY new shader uniform this experiment adds.
-    uniform float uArrivalOpticalMix;
 
     varying vec2 vUv;
 
@@ -512,12 +382,7 @@
       vec2 totalSlope = ambientSlope * 0.88 + impactSlope;
 
       float liquid = clamp(uLiquidMix, 0.0, 1.0);
-      // totalSlope itself (used above for nothing yet, and below for
-      // localRichness) is NOT touched — only boundedSlope, i.e. only the
-      // term that feeds the visible refraction, carries the Arrival
-      // factor. See uArrivalOpticalMix's declaration comment for why this
-      // is safe post-T3.
-      vec2 boundedSlope = (totalSlope / (1.0 + length(totalSlope) * 1.35)) * uArrivalOpticalMix;
+      vec2 boundedSlope = totalSlope / (1.0 + length(totalSlope) * 1.35);
       vec2 refractionPixels = clamp(
         boundedSlope * 2.25,
         vec2(-1.0),
@@ -528,263 +393,100 @@
       // here at zero extra cost as a per-pixel "local richness" field.
       // Where the water's own structure is locally steeper (a wave crest,
       // the leading edge of propagating motion), richness is high; where
-      // it is locally flatter, richness is low. This makes the reveal
-      // front follow the material's own physical structure instead of
-      // being a flat, time-only function of uWorldMix alone — the design
-      // goal being "the field acts, not a single timer," per
-      // the-phenomenology-of-the-threshold.md's coherence/no-single-point-
-      // dominates language. Unchanged from Crossing v1/v2 — this is the
-      // "organic, material-driven reveal" property v3 is also required to
-      // preserve, not replace. Moved earlier in main() (was computed after
-      // frameUv in v1/v2) only so Stage A below can read it before the
-      // refracted sampling coordinate is finalized — the formula itself is
-      // byte-for-byte unchanged.
+      // it is locally flatter, richness is low. This makes the atmosphere
+      // arrive unevenly, following the material's own physical structure,
+      // instead of as a flat, time-only function of uWorldMix alone — see
+      // atmosphereCoverage below, the only place this is now read.
       float localRichness = clamp(length(totalSlope) * 6.0, 0.0, 1.0);
 
-      // --- Crossing v3 addition: Stage A (FORMATION) ---
-      // Produces the "an opening is forming" signal using ONLY C400's
-      // existing physical vocabulary (refraction/slope/displacement,
-      // already computed above as refractionPixels) — zero uGames
-      // involvement of any kind, per instruction ("sample no color or
-      // background information from uGames" during formation). No new
-      // texture, no new pass, no new color: this is literally MORE of
-      // the exact same slope-driven displacement C400 already does
-      // everywhere, applied unevenly so one region visibly begins to
-      // behave differently from the water around it.
-      //
-      // apertureProgress ramps 0->1 across Stage A's own share of the
-      // uWorldMix ramp (see uFormationEnd) and then holds at 1.0 for the
-      // remainder — the opening, once formed, does not re-close while
-      // Stages B/C proceed. Computed BEFORE apertureField now (v3.2):
-      // apertureField's own thresholds read it below.
-      float apertureProgress = clamp(uWorldMix / max(uFormationEnd, 0.0001), 0.0, 1.0);
-      // --- Crossing v3.2 correction ---
-      // v3's apertureField used a FIXED threshold pair (0.45, 0.85) on
-      // localRichness, so the qualifying region was already at its full
-      // extent (~65% of the canvas at richness>=0.45) in the very first
-      // rendered frame of FORMATION — diagnosed directly via
-      // computeFieldStats() (see NOTE.txt "PART C"): fractionAboveLower
-      // measured ~0.65 at apertureProgress=0 and ~0.65 at
-      // apertureProgress=1, i.e. essentially flat across the whole
-      // interval. There was no spatial event to see — only a uniform
-      // intensity ramp over an already-fixed-shape region. That is why
-      // FORMATION read as "nothing, then a burst": the ONE visible thing
-      // (worldBlend engaging Games at Stage B/C) was the only genuine
-      // event in the whole sequence.
-      //
-      // The fix makes the threshold itself a function of apertureProgress
-      // instead of a constant. A histogram of the live richness field
-      // (v32-richness-histogram-probe.js) showed the field has a natural,
-      // already-most-turbulent "core": ~15% of the canvas remains above
-      // richness>=0.90 even as the threshold is pushed toward 0.99 (a
-      // plateau, not a single point — a genuine structural feature of
-      // C400's own simulated turbulence, not an artifact of this probe).
-      // At apertureProgress=0 the edges are set ABOVE that core (edge0
-      // 0.90, edge1 1.05 — note edge1 exceeds richness's own 0..1 ceiling,
-      // so even richness===1.0 falls short of full saturation: the seed
-      // is present but deliberately faint, not a hard-edged shape). As
-      // apertureProgress advances across FORMATION, both edges relax
-      // LINEARLY (apertureProgress is already confirmed linear in real
-      // time — see NOTE.txt PART B/C — so this does not reintroduce a
-      // pacing problem) down to v3.1's original fixed pair (0.45, 0.85)
-      // at apertureProgress=1. At apertureProgress=1 this formula is
-      // therefore IDENTICAL to v3.1's static smoothstep(0.45, 0.85, ...)
-      // — the final spatial condition converges exactly, as required.
-      //
-      // No shape is drawn: edge0/edge1 only change WHICH slice of the
-      // existing, completely unmodified localRichness field currently
-      // qualifies. The topology is still 100% the water simulation's own
-      // structure — this reveals more of what is already latent in it as
-      // FORMATION proceeds, rather than introducing a new object.
-      float apertureEdge0 = mix(0.90, 0.45, apertureProgress);
-      float apertureEdge1 = mix(1.05, 0.85, apertureProgress);
-      float apertureField = smoothstep(apertureEdge0, apertureEdge1, localRichness);
-      // A restrained tonal (darkening) consequence was deliberately NOT
-      // added here — see NOTE.txt. Displacement intensification alone
-      // was judged sufficient to communicate "opening," and adding any
-      // darkening tied to this same region risked reproducing exactly
-      // the failure the instruction names explicitly: "a gradual dark
-      // portal" as a disguised repeat of the abrupt black one. Every
-      // pixel's color in Stage A remains an unmodified sample of uHome —
-      // only WHERE on uHome each pixel samples from is perturbed.
-      //
-      // --- Crossing v3.2 correction (magnitude calibration) ---
-      // v3's fixed value (1.4, i.e. a 40% boost) was measured
-      // (v31/v32 diagnostics) to peak at well under 1 physical pixel of
-      // ADDITIONAL displacement on the EliteBook's 1x desktop viewport —
-      // at or below the threshold of reliable conscious perception, even
-      // before the v3.2 spatial fix above. Calibrated up from 1.4 to 2.0
-      // (see NOTE.txt "PART C" for the exact checkpoint measurements
-      // before/after, the 3.0 candidate that was tried and rejected for
-      // reading excessive on iPhone's already-larger base amplitude, and
-      // why 2.0 was judged the smallest shared value — no per-device
-      // tuning — that makes the now-growing aperture region consciously
-      // legible on both tested devices without violent distortion or
-      // typography illegibility). Still a FORMATION-only, Crossing-
-      // specific multiplier — canonical C400 amplitude/refraction/water
-      // physics are untouched; this constant did not exist before
-      // Crossing v3.
-      const float APERTURE_BOOST = 2.0;
-      vec2 apertureBoostPixels = refractionPixels * (APERTURE_BOOST - 1.0) * apertureField * apertureProgress;
-      vec2 totalRefractionPixels = refractionPixels + apertureBoostPixels;
-
-      vec2 refractedViewportUv = clamp(vUv + totalRefractionPixels / uResolution, 0.0, 1.0);
+      vec2 refractedViewportUv = clamp(vUv + refractionPixels / uResolution, 0.0, 1.0);
 
       // Single clean texture sample: cover-fit map straight to uHome, no
       // second padded-crop mapping stage (our textures carry no padding).
-      // frameUv now carries the Stage A aperture displacement too (when
-      // apertureProgress/apertureField are nonzero) — both uHome and
-      // uGames below are sampled through the SAME coordinate, so once
-      // Games content does appear (Stage B/C), it is seen through the
-      // same lensing the opening was already established with, not
-      // through an independent, undistorted mapping.
       vec2 frameUv = uCoverOffset + refractedViewportUv * uCoverScale;
       vec4 homeColor = texture2D(uHome, frameUv);
 
-      // --- Crossing experiment addition (v1) ---
-      // gamesColor is sampled at the exact SAME refracted frameUv as
-      // homeColor — both "worlds" are read through the identical liquid
-      // distortion, so neither can ever read as an undistorted rectangle
-      // laid over the other, and there is no second, independently-mapped
-      // surface. This is the one new texture sample this experiment adds
-      // relative to the locked C400 shader (see NOTE.txt for the count).
-      // Sampling it unconditionally here costs nothing extra — its
-      // CONTRIBUTION to gl_FragColor is what Stage A's hard gate below
-      // holds at exactly zero, not the sample itself.
-      vec4 gamesColor = texture2D(uGames, frameUv);
-
-      // --- Crossing v2 correction (this pass) ---
-      // v1's defect, diagnosed on the real-device footage: gamesColor is
-      // sampled from a screenshot of the real Game Localization page,
-      // which is ~98% near-black background and only ~2% bright text
-      // (measured directly on the baked texture — see NOTE.txt). v1's
-      // single richness-driven threshold treated every gamesColor pixel
-      // identically regardless of what it depicted, so wherever the water
-      // was locally rich, BOTH the (rare) text pixels and the (dominant)
-      // black-background pixels reached worldBlend=1 at the same uWorldMix
-      // — and because background pixels vastly outnumber text pixels,
-      // what the eye actually registered first was "black spreading
-      // across the liquid," not "text becoming legible." That read as a
-      // different, oily substance arriving on top of C400, not C400
-      // itself becoming able to show Games.
+      // ======================================================================
+      // experiment/continuous-river — replaces the old Games-texture blend
+      // (gamesColor/gamesLuminance/tau/spatialGate/worldBlend) with a fully
+      // procedural atmosphere. uGames is not sampled anywhere below this
+      // point: the canvas is the only visible surface, no second texture,
+      // no DOM capture. Grounded in game-localization's real resting
+      // palette (game-localization/styles.css :root defaults) — dark
+      // chromatic depth (#050510), discreet cyan (#18e0ff), near-residual
+      // violet (#c026f5), no amber, and a single plain white light point
+      // echoing #prologue .spark. "Menos é mais": this is the calm,
+      // pre-narrative rest state Games breathes in before any
+      // materialization begins, not a more spectacular invention of it.
       //
-      // The fix reuses the gamesColor sample already taken above — no new
-      // texture, no new pass — and derives its own luminance from it, a
-      // legitimate read of what is already there (the Games screenshot is
-      // essentially binary: near-black fill, near-white glyphs), then
-      // lets that luminance shift the SAME per-pixel threshold "tau"
-      // independently of localRichness: bright (content) pixels get a
-      // markedly LOWER threshold (they reveal early, while the surface is
-      // still overwhelmingly C400-colored elsewhere), near-black
-      // (background) pixels get a markedly HIGHER threshold (their own
-      // chromatic takeover is deferred). This is the "smallest
-      // architectural correction" the instruction asked for: the existing
-      // richness-driven spatial organicness is untouched (still governs
-      // WHERE within each category the reveal happens first); only WHAT
-      // is prioritized within that structure — content before background
-      // chroma — is new. Nothing is drawn that was not already going to
-      // be drawn; only its ordering across uWorldMix changes.
-      float gamesLuminance = dot(gamesColor.rgb, vec3(0.299, 0.587, 0.114));
-      float baseTau = mix(0.55, 0.15, localRichness);
-      // --- Crossing v3.4 correction (instruction sections 4/7) ---
-      // v2's contentShift range (+0.30 background / -0.35 text, a 0.65
-      // tau-unit spread) is what let text become visible while background
-      // was still measured at exactly 0.0% contribution — diagnosed this
-      // pass (v34-t0t3-dense-diagnosis.js, run against the unmodified
-      // v3.3 build): first non-zero text at T0+296ms, first non-zero
-      // background at T0+737-787ms, a ~440-495ms gap on both devices. The
-      // instruction is explicit that the old rule is no longer compatible
-      // with the current portal architecture, but also explicit not to
-      // simply invert it into black-first (section 7) — text and
-      // background should become eligible as COORDINATED information
-      // belonging to the same discovered world, with at most a slightly
-      // different progression, not a half-second head start for one over
-      // the other. First attempt narrowed the spread to 0.65->0.20
-      // (+0.10/-0.10) on the theory that contentShift alone was the
-      // asymmetry; re-measuring THAT build (v34-contentshift-tuning-probe.js)
-      // showed the gap barely moved (still ~400-550ms) — because most of
-      // the apparent "spread" was never contentShift at all: baseTau's own
-      // richness term already spans 0.40 tau-units (0.15..0.55) on its own,
-      // dwarfing a +-0.10 contentShift. Since richness is a SPATIAL field
-      // (from the water's own slope, sampled at each pixel's screen
-      // location — see baseTau above) sampled identically regardless of
-      // whether that location happens to show text or background, it does
-      // not itself impose a text-vs-background bias; contentShift is the
-      // ONLY term that does, so it is the only lever available without
-      // touching the frozen richness/organicness mechanism. Narrowed
-      // further to 0.65->0.08 (+0.04 background / -0.04 text) and
-      // re-measured (NOTE.txt Part C): first-nonzero gap closed to
-      // ~85-130ms on both devices, and — more importantly, visible in the
-      // dense per-frame trace, not just the two crossing instants — the
-      // two curves rise together from roughly the same real-time window
-      // onward rather than one sitting at exactly 0.0% while the other is
-      // already substantial. Text keeps a small, deliberate head start
-      // (matching "may have slightly different progression curves if
-      // necessary") without the old dramatic gap. Combined with this
-      // pass's new RECOGNITION hold (section 5), no rendered frame shows
-      // text over a still-undarkened, non-opening region (validated
-      // visually, item B in NOTE.txt Part E). Nothing else about the
-      // content-priority mechanism changed: bright pixels still reveal
-      // marginally before dark ones, richness-driven spatial organicness
-      // (baseTau) is completely untouched.
-      float contentShift = mix(0.04, -0.04, gamesLuminance);
-      float tau = clamp(baseTau + contentShift, 0.15, 0.85);
+      // One continuous curve now drives the whole evolution — uWorldMix
+      // itself, ramped 0->1 by a single eased clock in
+      // updateMaterialTransition() (see INFUSION_DURATION) — rather than a
+      // time-split into separate zero-color/color-arriving sub-stages.
+      // atmosphereCoverage below reuses localRichness (the water's own
+      // turbulence field, computed above and otherwise untouched) as a
+      // spatial mask, so color still arrives unevenly — in the most
+      // turbulent regions first — an organic reveal produced by the
+      // water's own structure, not a manufactured time-split.
+      float atmosphereOnset = smoothstep(0.0, 0.08, uWorldMix);
+      float atmosphereThreshold = mix(0.85, -0.20, uWorldMix);
+      float atmosphereCoverage = smoothstep(atmosphereThreshold - 0.15, atmosphereThreshold + 0.15, localRichness);
+      float atmosphereBlend = atmosphereOnset * atmosphereCoverage;
 
-      // --- Crossing v3 addition: FORMATION -> FIRST SIGHT causal gate ---
-      // gamesTimeInput remaps uWorldMix's [uFormationEnd, 1] range to
-      // [0, 1] and is EXACTLY 0 for every uWorldMix <= uFormationEnd — a
-      // hard, construction-guaranteed zero (proved below), not an
-      // approximation — so gamesColor cannot contribute to gl_FragColor
-      // AT ALL while uWorldMix is within Stage A, for any pixel,
-      // regardless of tau/localRichness/gamesLuminance. The frame where
-      // uWorldMix first exceeds uFormationEnd is the exact FORMATION ->
-      // FIRST SIGHT transition event referred to in NOTE.txt.
-      float gamesTimeInput = clamp((uWorldMix - uFormationEnd) / max(1.0 - uFormationEnd, 0.0001), 0.0, 1.0);
+      // Base: --bg:#050510.
+      vec3 atmosphereBase = vec3(0.0196, 0.0196, 0.0627);
 
-      // --- Crossing v3 addition: spatial containment (Stage B/C) ---
-      // v2's content-priority tau above already biases WHEN a pixel
-      // reveals by what it depicts (text before background); this adds
-      // WHERE: Games content must appear only inside the opening already
-      // established in Stage A, never over surrounding Home — even for a
-      // pixel whose brightness alone would otherwise let it through
-      // early. apertureThreshold starts at 0.85, matching apertureField's
-      // own upper edge above (only the tightest, already-visibly-forming
-      // aperture core qualifies at the very start of Stage B), and slides
-      // to -0.20 as gamesTimeInput -> 1, so by the end of the ramp every
-      // pixel qualifies — required for the worldMix=1 boundary guarantee
-      // below. This is the spatial expression of "the opening ...
-      // progressively ... while it expands."
-      float apertureThreshold = mix(0.85, -0.20, gamesTimeInput);
-      float spatialGate = smoothstep(apertureThreshold - 0.15, apertureThreshold + 0.15, localRichness);
+      // Discreet cyan presence (--cyan:#18e0ff, target intensity ~0.16,
+      // matching --cyanA's real resting value), positioned in vUv (not
+      // frameUv) so it reads as stable ambient light rather than warped
+      // reflection, and aspect-corrected (via aspect, computed above in
+      // main()) so it stays round on any viewport, portrait phones
+      // included.
+      vec2 cyanCenter = vec2(0.30, 0.32);
+      vec2 cyanDelta = (vUv - cyanCenter) * vec2(aspect, 1.0);
+      float cyanFalloff = exp(-dot(cyanDelta, cyanDelta) * 2.4);
+      float cyanIntensity = 0.16 * smoothstep(0.05, 0.35, uWorldMix);
+      vec3 cyanColor = vec3(0.094, 0.878, 1.0);
+      vec3 atmosphere = 1.0 - (1.0 - atmosphereBase) * (1.0 - cyanColor * cyanFalloff * cyanIntensity);
 
-      float worldBlend = smoothstep(tau - 0.15, tau + 0.15, gamesTimeInput) * spatialGate;
+      // Near-residual violet (--violet:#c026f5, target intensity ~0.05 —
+      // deliberately restrained, arriving later than cyan).
+      vec2 violetCenter = vec2(0.72, 0.78);
+      vec2 violetDelta = (vUv - violetCenter) * vec2(aspect, 1.0);
+      float violetFalloff = exp(-dot(violetDelta, violetDelta) * 2.1);
+      float violetIntensity = 0.05 * smoothstep(0.15, 0.75, uWorldMix);
+      vec3 violetColor = vec3(0.753, 0.149, 0.961);
+      atmosphere = 1.0 - (1.0 - atmosphere) * (1.0 - violetColor * violetFalloff * violetIntensity);
 
-      // Boundary guarantee, re-derived for v3 (same proof shape as v1/v2,
-      // now composed over gamesTimeInput and spatialGate as well as tau):
-      //
-      // At uWorldMix=0: gamesTimeInput=0 exactly (clamped). tau is
-      // clamped to [0.15, 0.85], so tau-0.15 >= 0.00 = gamesTimeInput —
-      // smoothstep(edge0>=x, edge1, x) with x<=edge0 returns exactly 0,
-      // for every possible tau. worldBlend=0*spatialGate=0 regardless of
-      // spatialGate's own value. Also apertureProgress=0 at uWorldMix=0,
-      // so totalRefractionPixels==refractionPixels exactly — frame zero
-      // is pixel-identical to the unmodified C400 refraction, matching
-      // validation item 1 (frame zero must match normal Home) by
-      // construction, unchanged from v1/v2.
-      //
-      // At uWorldMix=1: gamesTimeInput=1 exactly (uFormationEnd<1). tau
-      // <= 0.85, so tau+0.15 <= 1.00 = gamesTimeInput — smoothstep(edge0,
-      // edge1<=x, x) with x>=edge1 returns exactly 1, for every possible
-      // tau, so the first factor is 1. apertureThreshold at
-      // gamesTimeInput=1 is -0.20, so spatialGate's low edge is -0.35 —
-      // since localRichness is itself clamped to [0, 1], every pixel's
-      // localRichness >= 0 >= -0.35+0.15... explicitly: edge1 =
-      // apertureThreshold+0.15 = -0.05, and localRichness >= 0 >= -0.05,
-      // so smoothstep returns exactly 1 for every pixel regardless of its
-      // own richness value. worldBlend=1*1=1 for every pixel — pure
-      // Games, matching the held endpoint by construction, unchanged from
-      // v1/v2.
-      gl_FragColor = mix(homeColor, gamesColor, worldBlend);
+      // Vignette, matching Games' own .vignette (opacity 0.4 at rest).
+      float vignette = smoothstep(0.92, 0.30, length(vUv - 0.5));
+      atmosphere *= mix(0.74, 1.0, vignette);
+
+      // A single plain-white light point, echoing #prologue .spark (pure
+      // white, not amber) — arrives last, once cyan/violet are already
+      // established, and roughly where the real #prologue .spark sits
+      // (horizontally centered, just above the text block's own center)
+      // so it can read as the same point of light carrying through the
+      // real navigation that follows this Gate's held endpoint.
+      vec2 sparkCenter = vec2(0.5, 0.46);
+      vec2 sparkDelta = (vUv - sparkCenter) * vec2(aspect, 1.0);
+      float sparkFalloff = exp(-dot(sparkDelta, sparkDelta) * 240.0);
+      float sparkIntensity = 0.85 * smoothstep(0.55, 0.92, uWorldMix);
+      atmosphere += vec3(1.0) * sparkFalloff * sparkIntensity;
+
+      vec4 atmosphereColor = vec4(atmosphere, 1.0);
+
+      // Boundary guarantee: at uWorldMix=0, atmosphereOnset=
+      // smoothstep(0.0,0.08,0)=0 exactly, so atmosphereBlend=0 regardless
+      // of coverage — frame zero is pixel-identical to plain homeColor,
+      // matching the frozen segment above by construction. At
+      // uWorldMix=1, atmosphereOnset=1 exactly; atmosphereThreshold=-0.20,
+      // so atmosphereCoverage's low edge is -0.35 — since localRichness is
+      // clamped to [0,1], every pixel clears it, so atmosphereCoverage=1
+      // for every pixel regardless of its own richness value.
+      // atmosphereBlend=1 for every pixel — pure atmosphere, the held
+      // endpoint this Gate delivers.
+      gl_FragColor = mix(homeColor, atmosphereColor, atmosphereBlend);
     }
   `;
 
@@ -980,44 +682,17 @@
   let lastFrameTime = 0;
   let frameRequest = 0;
 
-  // Crossing experiment additions (this pass). worldPhaseStartedAt is
-  // re-anchored twice: once when materialPhase first reaches "liquid"
-  // (starts the WORLD_HOLD_DURATION wait) and again when it advances to
-  // "revealing" (starts the WORLD_REVEAL_DURATION ramp) — see
-  // updateMaterialTransition() below. worldMix is the new uWorldMix
-  // uniform's JS-side value: 0 throughout solid/engaging/liquid/hold,
-  // ramping 0->1 during "revealing", pinned at 1 during "revealed".
+  // worldPhaseStartedAt is re-anchored twice: once when materialPhase
+  // first reaches "liquid" (starts the LIQUID_HOLD_DURATION wait) and
+  // again when it advances to "revealing" (starts the single, continuous
+  // INFUSION_DURATION ramp — see updateMaterialTransition() below).
+  // worldMix is the uWorldMix uniform's JS-side value: 0 throughout
+  // solid/engaging/liquid/hold, ramping 0->1 during "revealing", pinned
+  // at 1 during "revealed". materialPhase itself still only has its
+  // original five values (solid/engaging/liquid/revealing/revealed), so
+  // any external reader of getPhase() keeps working unchanged.
   let worldPhaseStartedAt = 0;
   let worldMix = 0;
-
-  // Crossing v3.1 addition (PART B). materialPhase itself still only has
-  // its original five values (solid/engaging/liquid/revealing/revealed —
-  // unchanged, so the existing sandbox harness's phase-string checks and
-  // any other external reader of getPhase() keep working exactly as
-  // before). revealSubStage is a NEW, purely internal subdivision of
-  // "revealing" alone, tracking which of the two independently-clocked
-  // segments described above is currently driving worldMix.
-  // formationToTransferAt records the exact performance.now() timestamp
-  // of the FORMATION -> FIRST SIGHT event (also re-anchors the transfer
-  // segment's own clock) — this is the "concrete perceptual/
-  // implementation boundary" section 3 of the instruction asks this pass
-  // to define and report.
-  let revealSubStage = "formation"; // v3.4: "formation" | "recognition" | "discovery" | "passage" — meaningful only while materialPhase === "revealing". Was "formation" | "transfer" through v3.3; "transfer" is now split into three named, independently-clocked segments (see RECOGNITION_DURATION/DISCOVERY_DURATION/PASSAGE_DURATION above).
-  let formationToTransferAt = 0;
-
-  // --- Games Arrival Experiment 01 additions ---
-  // A state machine entirely separate from materialPhase/revealSubStage
-  // above — it only ever starts OBSERVING once materialPhase has already
-  // reached "revealed" (T3), and never changes materialPhase, worldMix,
-  // liquidMix, or anything else the approved Crossing owns. This is the
-  // ONLY place this experiment tracks its own state.
-  //   "none"   — before T3 (or Arrival not yet reached this frame); the
-  //              approved Crossing's own state machine is what's running.
-  //   "active" — settling in progress; arrivalOpticalMix ramping 1 -> 0.
-  //   "stable" — Arrival complete; arrivalOpticalMix pinned at exactly 0.
-  let arrivalPhase = "none";
-  let arrivalStartedAt = 0;
-  let arrivalOpticalMix = 1; // the uArrivalOpticalMix uniform's JS-side value — 1.0 (no-op) until Arrival begins
 
   let lockedScrollY = 0;
 
@@ -1125,364 +800,19 @@
     return arr;
   }
 
-  // ambientWater() translated verbatim from MATERIAL_SHADER (GLSL) above —
-  // same directions/frequencies/phases/amplitudes, same output triple.
-  // Read-only: evaluating this in JS does not affect the shader, which
-  // keeps computing it independently on the GPU exactly as before.
-  function diagAmbientWater(px, py, time, scale, viscosity) {
-    const d1x = 1.0, d1y = 0.0;
-    const d2x = 0.5, d2y = 0.8660254;
-    const d3x = -0.7660444, d3y = 0.6427876;
-    const d4x = 0.1736482, d4y = -0.9848078;
-
-    const detail = 1.0 + (0.70 - 1.0) * viscosity; // mix(1.0, 0.70, viscosity)
-    const f1 = 4.4 * scale, f2 = 6.1 * scale, f3 = 8.3 * scale, f4 = 11.2 * scale;
-    const p1 = (px * d1x + py * d1y) * f1 + time * 0.62 + 0.35;
-    const p2 = (px * d2x + py * d2y) * f2 - time * 0.47 + 1.90;
-    const p3 = (px * d3x + py * d3y) * f3 + time * 0.36 + 3.25;
-    const p4 = (px * d4x + py * d4y) * f4 - time * 0.28 + 5.10;
-    const a1 = 0.018, a2 = 0.014, a3 = 0.010 * detail, a4 = 0.006 * detail;
-
-    const height =
-      Math.sin(p1) * a1 + Math.sin(p2) * a2 + Math.sin(p3) * a3 + Math.sin(p4) * a4;
-
-    const slopeX =
-      d1x * Math.cos(p1) * f1 * a1 + d2x * Math.cos(p2) * f2 * a2 +
-      d3x * Math.cos(p3) * f3 * a3 + d4x * Math.cos(p4) * f4 * a4;
-    const slopeY =
-      d1y * Math.cos(p1) * f1 * a1 + d2y * Math.cos(p2) * f2 * a2 +
-      d3y * Math.cos(p3) * f3 * a3 + d4y * Math.cos(p4) * f4 * a4;
-
-    return { height, slopeX, slopeY };
-  }
-
-  function diagStatsOf(values) {
-    const n = values.length;
-    if (n === 0) return { mean: 0, rms: 0, max: 0, variance: 0 };
-    let sum = 0, sumSq = 0, max = 0;
-    for (let i = 0; i < n; i += 1) {
-      const v = values[i];
-      sum += v;
-      sumSq += v * v;
-      const av = Math.abs(v);
-      if (av > max) max = av;
-    }
-    const mean = sum / n;
-    const rms = Math.sqrt(sumSq / n);
-    let varSum = 0;
-    for (let i = 0; i < n; i += 1) {
-      const dv = values[i] - mean;
-      varSum += dv * dv;
-    }
-    return { mean, rms, max, variance: varSum / n };
-  }
-
-  // The core measurement: reads the ACTUAL current water texture back
-  // from the GPU (gl.readPixels — a passive read of what the simulation
-  // already computed) and recomputes, per texel, exactly what
-  // MATERIAL_SHADER computes from it. Returns null with a `reason` if
-  // something required isn't available yet (e.g. before WebGL init).
+  // computeFieldStats() (a CPU-side mirror of MATERIAL_SHADER's Games-
+  // texture-blend math: gamesLuminance/tau/spatialGate/worldBlend, plus
+  // its own JS re-derivation of the Stage A aperture math) and its two
+  // helpers (diagAmbientWater(), diagStatsOf()) were removed in the
+  // continuous-river redesign. That diagnostic mirror already described a
+  // formula this file no longer implements — none of it was reachable
+  // from anywhere except the on-demand window.__mvDiag.getFieldStats()
+  // call (never invoked per-frame, and #mv-controls' own live readout is
+  // always hidden), so nothing observable changes; getFieldStats() below
+  // now returns a plain {available:false} instead of carrying ~300 lines
+  // of dead, actively-misleading diagnostic code forward.
   function computeFieldStats() {
-    if (!gl || !waterResources) return { available: false, reason: "gl/waterResources not ready" };
-
-    const w = waterResources.width;
-    const h = waterResources.height;
-    const prevFb = gl.getParameter(gl.FRAMEBUFFER_BINDING);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, waterResources.framebuffers[waterResources.readIndex]);
-    const pixels = new Uint8Array(w * h * 4);
-    gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, prevFb);
-
-    const ENCODED_ZERO = 0.5019607843;
-    const heightField = new Float32Array(w * h);
-    const velocityField = new Float32Array(w * h);
-    for (let i = 0; i < w * h; i += 1) {
-      const r = pixels[i * 4] / 255;
-      const g = pixels[i * 4 + 1] / 255;
-      heightField[i] = (r - ENCODED_ZERO) * 2.0;
-      velocityField[i] = (g - ENCODED_ZERO) * 0.5;
-    }
-
-    const idx = (x, y) => {
-      const cx = Math.min(Math.max(x, 0), w - 1); // CLAMP_TO_EDGE, same as the texture sampler
-      const cy = Math.min(Math.max(y, 0), h - 1);
-      return cy * w + cx;
-    };
-
-    const aspect = canvas.width / Math.max(canvas.height, 1);
-    const scale = DEFAULTS.scale;
-    const viscosity = DEFAULTS.viscosity;
-    const time = motionTime;
-    const liquid = Math.min(Math.max(liquidMix, 0), 1);
-    const amp = currentAmplitudeTable()[currentVariant] * dprCapped;
-
-    const ambientSlopeMag = new Float32Array(w * h);
-    const impactSlopeMag = new Float32Array(w * h);
-    const totalSlopeMag = new Float32Array(w * h);
-    const boundedSlopeMag = new Float32Array(w * h);
-    const refractionMag = new Float32Array(w * h);
-    // Games Arrival Experiment 01 diagnosis-only addition: mirrors
-    // MATERIAL_SHADER's actual arrival-adjusted refraction exactly —
-    // boundedSlope * uArrivalOpticalMix, THEN clamped/scaled into
-    // refraction pixels — so checkpoint captures can read the real,
-    // currently-in-effect optical displacement (not the pre-Arrival
-    // boundedSlopeMagnitude/refractionMagnitudePx above, which
-    // deliberately stay byte-identical mirrors of the ORIGINAL,
-    // arrival-unaware formula so existing v3.4 evidence/report
-    // comparisons remain valid). At arrivalOpticalMix===1 (the entire
-    // approved Crossing) these two are identical.
-    const arrivalRefractionMag = new Float32Array(w * h);
-    const smoothedImpactArr = new Float32Array(w * h);
-    // v3.2 diagnosis-only addition (section 3 of the v3.2 instruction):
-    // mirrors MATERIAL_SHADER's localRichness / apertureField /
-    // apertureProgress / aperture-boost-magnitude computation exactly,
-    // so FORMATION's actual visible-effect driver can be measured
-    // directly instead of inferred from rendered-pixel RMSE (which
-    // dilutes a spatially-small effect across a mostly-static canvas).
-    // Read-only: does not affect the shader or any simulation state.
-    const localRichnessArr = new Float32Array(w * h);
-    const apertureFieldArr = new Float32Array(w * h);
-    const apertureBoostMagArr = new Float32Array(w * h);
-    const formationEndNow = Math.max(STAGE_A_FORMATION_END, 0.0001);
-    const apertureProgressNow = Math.min(Math.max(worldMix / formationEndNow, 0), 1);
-    const APERTURE_BOOST_DIAG = 2.0; // must track MATERIAL_SHADER's APERTURE_BOOST exactly
-
-    // v3.3 diagnosis-only addition (Phase 6: diagnose FIRST SIGHT/TRANSFER
-    // before changing it). Mirrors MATERIAL_SHADER's Stage B/C block
-    // byte-for-byte: gamesLuminance (sampled from the CPU-side Games
-    // pixel cache at the SAME refracted frameUv the shader itself samples
-    // — includes Stage A's own aperture-boosted displacement, since that
-    // displacement is still in effect for the rest of the sequence once
-    // apertureProgress saturates at 1), baseTau/contentShift/tau,
-    // gamesTimeInput, apertureThreshold/spatialGate, worldBlend. This is
-    // the only way to separate "Games TEXT contribution" from "Games
-    // BACKGROUND contribution" — gl.readPixels on the final composited
-    // canvas alone cannot tell a blended pixel's Games portion was text
-    // vs. fill; this mirror knows because it re-samples the source Games
-    // texture directly, not the composited result.
-    const worldBlendArr = new Float32Array(w * h);
-    const gamesLuminanceArr = new Float32Array(w * h);
-    const gamesTimeInputNow = Math.min(Math.max((worldMix - formationEndNow) / Math.max(1 - formationEndNow, 0.0001), 0), 1);
-    const homeCache = homePixelCache.get(activeTextureKey);
-    const gamesCache = gamesPixelCache.get(activeTextureKey);
-    const canDiagTransfer = !!(homeCache && gamesCache);
-    // Nearest-neighbor sample of a capturePixelDataDiag() buffer at
-    // shader-space (u,v). Row is flipped (1-v) to match
-    // UNPACK_FLIP_Y_WEBGL=true, which is how the GPU texture this mirrors
-    // was actually uploaded (see uploadTexture()/capturePixelDataDiag()).
-    function sampleTexelDiag(cache, u, v) {
-      const cx = Math.min(Math.max(Math.round(u * (cache.width - 1)), 0), cache.width - 1);
-      const cy = Math.min(Math.max(Math.round((1 - v) * (cache.height - 1)), 0), cache.height - 1);
-      const o = (cy * cache.width + cx) * 4;
-      return { r: cache.data[o] / 255, g: cache.data[o + 1] / 255, b: cache.data[o + 2] / 255 };
-    }
-
-    for (let y = 0; y < h; y += 1) {
-      for (let x = 0; x < w; x += 1) {
-        const i = y * w + x;
-        const center = heightField[i];
-        const left = heightField[idx(x - 1, y)];
-        const right = heightField[idx(x + 1, y)];
-        const down = heightField[idx(x, y - 1)];
-        const up = heightField[idx(x, y + 1)];
-
-        const smoothedImpact = (center * 4.0 + left + right + down + up) * 0.125;
-        const impactSlopeX = (right - left) * 3.0;
-        const impactSlopeY = (up - down) * 3.0;
-
-        // vUv for this texel, in the same 0..1 screen-space the shader
-        // samples uWater in — see the methodology note above.
-        const vUvX = (x + 0.5) / w;
-        const vUvY = (y + 0.5) / h;
-        const posX = (vUvX - 0.5) * aspect;
-        const posY = (vUvY - 0.5) * 1.0;
-        const ambient = diagAmbientWater(posX, posY, time, Math.max(scale, 0.01), viscosity);
-        const ambientSlopeX = ambient.slopeX * 0.88;
-        const ambientSlopeY = ambient.slopeY * 0.88;
-
-        const totalSlopeX = ambientSlopeX + impactSlopeX;
-        const totalSlopeY = ambientSlopeY + impactSlopeY;
-        const totalLen = Math.sqrt(totalSlopeX * totalSlopeX + totalSlopeY * totalSlopeY);
-        const denom = 1.0 + totalLen * 1.35;
-        const boundedX = totalSlopeX / denom;
-        const boundedY = totalSlopeY / denom;
-        const boundedLen = Math.sqrt(boundedX * boundedX + boundedY * boundedY);
-
-        const refrXRaw = Math.min(Math.max(boundedX * 2.25, -1), 1) * amp * liquid;
-        const refrYRaw = Math.min(Math.max(boundedY * 2.25, -1), 1) * amp * liquid;
-        const refrLen = Math.sqrt(refrXRaw * refrXRaw + refrYRaw * refrYRaw);
-
-        smoothedImpactArr[i] = smoothedImpact;
-        ambientSlopeMag[i] = Math.sqrt(ambientSlopeX * ambientSlopeX + ambientSlopeY * ambientSlopeY);
-        impactSlopeMag[i] = Math.sqrt(impactSlopeX * impactSlopeX + impactSlopeY * impactSlopeY);
-        totalSlopeMag[i] = totalLen;
-        boundedSlopeMag[i] = boundedLen;
-        refractionMag[i] = refrLen;
-
-        // Games Arrival Experiment 01 diagnosis-only mirror — see
-        // arrivalRefractionMag's declaration comment above.
-        const arrivalBoundedX = boundedX * arrivalOpticalMix;
-        const arrivalBoundedY = boundedY * arrivalOpticalMix;
-        const arrivalRefrXRaw = Math.min(Math.max(arrivalBoundedX * 2.25, -1), 1) * amp * liquid;
-        const arrivalRefrYRaw = Math.min(Math.max(arrivalBoundedY * 2.25, -1), 1) * amp * liquid;
-        arrivalRefractionMag[i] = Math.sqrt(arrivalRefrXRaw * arrivalRefrXRaw + arrivalRefrYRaw * arrivalRefrYRaw);
-
-        // v3.2 diagnosis-only mirror — updated to match the v3.2 shader
-        // correction: localRichness = clamp(len(totalSlope)*6,0,1);
-        // apertureEdge0/1 relax linearly from (0.90,1.05) at
-        // apertureProgress=0 to (0.45,0.85) at apertureProgress=1;
-        // apertureField = smoothstep(edge0,edge1,localRichness); boost
-        // magnitude = refrLen * (BOOST-1) * apertureField * apertureProgress
-        // — byte-for-byte mirror of MATERIAL_SHADER's current Stage A block.
-        const richness = Math.min(Math.max(totalLen * 6.0, 0), 1);
-        const apEdge0 = 0.90 + (0.45 - 0.90) * apertureProgressNow;
-        const apEdge1 = 1.05 + (0.85 - 1.05) * apertureProgressNow;
-        const smoothstepAperture = (() => {
-          const t = Math.min(Math.max((richness - apEdge0) / (apEdge1 - apEdge0), 0), 1);
-          return t * t * (3 - 2 * t);
-        })();
-        localRichnessArr[i] = richness;
-        apertureFieldArr[i] = smoothstepAperture;
-        apertureBoostMagArr[i] = refrLen * (APERTURE_BOOST_DIAG - 1.0) * smoothstepAperture * apertureProgressNow;
-
-        // v3.3 diagnosis-only: Stage B/C mirror, byte-for-byte against
-        // MATERIAL_SHADER — see the block comment above computeFieldStats'
-        // worldBlendArr declaration for why this needs the CPU pixel cache.
-        if (canDiagTransfer) {
-          const totalRefrFactor = 1.0 + (APERTURE_BOOST_DIAG - 1.0) * smoothstepAperture * apertureProgressNow;
-          const totalRefrX = refrXRaw * totalRefrFactor;
-          const totalRefrY = refrYRaw * totalRefrFactor;
-          const refractedU = Math.min(Math.max(vUvX + totalRefrX / canvas.width, 0), 1);
-          const refractedV = Math.min(Math.max(vUvY + totalRefrY / canvas.height, 0), 1);
-          const frameU = coverMapping.offsetX + refractedU * coverMapping.scaleX;
-          const frameV = coverMapping.offsetY + refractedV * coverMapping.scaleY;
-          const gamesTexel = sampleTexelDiag(gamesCache, frameU, frameV);
-          const gamesLuminance = gamesTexel.r * 0.299 + gamesTexel.g * 0.587 + gamesTexel.b * 0.114;
-          const baseTau = 0.55 + (0.15 - 0.55) * richness;
-          // v3.4: narrowed to match MATERIAL_SHADER's own contentShift correction (+0.10/-0.10, was +0.30/-0.35)
-          const contentShift = 0.04 + (-0.04 - 0.04) * gamesLuminance;
-          const tau = Math.min(Math.max(baseTau + contentShift, 0.15), 0.85);
-          const apertureThreshold = 0.85 + (-0.20 - 0.85) * gamesTimeInputNow;
-          const spatialGateEdge0 = apertureThreshold - 0.15;
-          const spatialGateEdge1 = apertureThreshold + 0.15;
-          const spatialGateT = Math.min(Math.max((richness - spatialGateEdge0) / Math.max(spatialGateEdge1 - spatialGateEdge0, 0.0001), 0), 1);
-          const spatialGate = spatialGateT * spatialGateT * (3 - 2 * spatialGateT);
-          const worldBlendEdge0 = tau - 0.15;
-          const worldBlendEdge1 = tau + 0.15;
-          const worldBlendT = Math.min(Math.max((gamesTimeInputNow - worldBlendEdge0) / Math.max(worldBlendEdge1 - worldBlendEdge0, 0.0001), 0), 1);
-          const worldBlendSmooth = worldBlendT * worldBlendT * (3 - 2 * worldBlendT);
-          worldBlendArr[i] = worldBlendSmooth * spatialGate;
-          gamesLuminanceArr[i] = gamesLuminance;
-        }
-      }
-    }
-
-    // v3.2 diagnosis-only: fraction of pixels whose localRichness clears
-    // apertureField's lower edge (0.45, where the spatial mask starts
-    // contributing at all) and upper edge (0.85, full contribution) —
-    // answers "how much of the canvas is even eligible for the aperture
-    // effect right now," independent of apertureProgress's time ramp.
-    let pixelsAboveLowerEdge = 0;
-    let pixelsAboveUpperEdge = 0;
-    // v3.2 diagnosis-only: a small richness histogram, to calibrate a
-    // progress-dependent aperture threshold's STARTING edges (need to
-    // know what richness cutoff yields a genuinely small "seed" area,
-    // not just confirm today's fixed 0.45/0.85 pair).
-    const richnessHistThresholds = [0.45, 0.60, 0.70, 0.80, 0.85, 0.90, 0.93, 0.95, 0.97, 0.98, 0.99];
-    const richnessHistCounts = new Array(richnessHistThresholds.length).fill(0);
-    for (let i = 0; i < w * h; i += 1) {
-      if (localRichnessArr[i] >= 0.45) pixelsAboveLowerEdge += 1;
-      if (localRichnessArr[i] >= 0.85) pixelsAboveUpperEdge += 1;
-      for (let ti = 0; ti < richnessHistThresholds.length; ti += 1) {
-        if (localRichnessArr[i] >= richnessHistThresholds[ti]) richnessHistCounts[ti] += 1;
-      }
-    }
-    const richnessHistogram = richnessHistThresholds.map((thresh, ti) => ({
-      thresh,
-      fraction: richnessHistCounts[ti] / (w * h)
-    }));
-
-    // v3.3 diagnosis-only: aggregate worldBlendArr/gamesLuminanceArr into
-    // the Phase 6 quantities the instruction asks for. "Occupied" fractions
-    // use a >0.5 dominance threshold (this pixel's rendered color is
-    // majority-Games, not majority-Home) — a rendered-screen-area measure,
-    // distinct from the *_ContributionMean quantities below (worldBlend's
-    // raw average — a blend-weighted measure that also counts partial
-    // contribution from partially-blended edge pixels).
-    let sumWorldBlend = 0;
-    let textOccupiedCount = 0; // worldBlend>0.5 AND this Games texel is bright (text/content)
-    let backgroundOccupiedCount = 0; // worldBlend>0.5 AND this Games texel is near-black (fill)
-    let sumTextWeighted = 0; // worldBlend * isText, unthresholded — content contribution
-    let sumBackgroundWeighted = 0; // worldBlend * isBackground, unthresholded — fill contribution
-    const TEXT_LUMINANCE_THRESHOLD = 0.5; // matches MATERIAL_SHADER's own comment: content is "near-white glyphs"
-    const BACKGROUND_LUMINANCE_THRESHOLD = 0.15; // matches "near-black fill"
-    if (canDiagTransfer) {
-      for (let i = 0; i < w * h; i += 1) {
-        const wb = worldBlendArr[i];
-        sumWorldBlend += wb;
-        const lum = gamesLuminanceArr[i];
-        const isText = lum >= TEXT_LUMINANCE_THRESHOLD;
-        const isBackground = lum <= BACKGROUND_LUMINANCE_THRESHOLD;
-        if (isText) sumTextWeighted += wb;
-        if (isBackground) sumBackgroundWeighted += wb;
-        if (wb > 0.5) {
-          if (isText) textOccupiedCount += 1;
-          else if (isBackground) backgroundOccupiedCount += 1;
-        }
-      }
-    }
-    const transferDiag = canDiagTransfer
-      ? {
-          worldMix,
-          gamesTimeInput: gamesTimeInputNow,
-          homeContributionMean: 1 - sumWorldBlend / (w * h),
-          gamesContributionMean: sumWorldBlend / (w * h),
-          gamesTextContributionMean: sumTextWeighted / (w * h),
-          gamesBackgroundContributionMean: sumBackgroundWeighted / (w * h),
-          fractionScreenOccupiedByGamesText: textOccupiedCount / (w * h),
-          fractionScreenOccupiedByGamesBackground: backgroundOccupiedCount / (w * h),
-          worldBlend: diagStatsOf(worldBlendArr)
-        }
-      : { available: false, reason: "homePixelCache/gamesPixelCache not ready for activeTextureKey" };
-
-    return {
-      available: true,
-      gridWidth: w,
-      gridHeight: h,
-      inputs: { motionTime: time, liquidMix: liquid, amplitude: amp, variant: currentVariant, deviceClass: activeTextureKey },
-      height: diagStatsOf(heightField),
-      velocity: diagStatsOf(velocityField),
-      smoothedImpact: diagStatsOf(smoothedImpactArr),
-      ambientSlopeMagnitude: diagStatsOf(ambientSlopeMag),
-      impactSlopeMagnitude: diagStatsOf(impactSlopeMag),
-      totalSlopeMagnitude: diagStatsOf(totalSlopeMag),
-      boundedSlopeMagnitude: diagStatsOf(boundedSlopeMag),
-      refractionMagnitudePx: diagStatsOf(refractionMag),
-      // v3.2 diagnosis-only additions:
-      formationDiag: {
-        worldMix,
-        formationEnd: formationEndNow,
-        apertureProgress: apertureProgressNow,
-        localRichness: diagStatsOf(localRichnessArr),
-        apertureField: diagStatsOf(apertureFieldArr),
-        apertureBoostMagnitudePx: diagStatsOf(apertureBoostMagArr),
-        fractionPixelsAboveLowerEdge: pixelsAboveLowerEdge / (w * h),
-        fractionPixelsAboveUpperEdge: pixelsAboveUpperEdge / (w * h),
-        richnessHistogram
-      },
-      // v3.3 diagnosis-only addition:
-      transferDiag,
-      cumulativeSimulationSteps: diagCumulativeSteps,
-      simulationAccumulator,
-      // Games Arrival Experiment 01 diagnosis-only additions:
-      arrivalDiag: {
-        arrivalPhase,
-        arrivalOpticalMix,
-        arrivalElapsedMs: arrivalPhase === "none" ? 0 : diagNow() - arrivalStartedAt,
-        arrivalDurationMs: ARRIVAL_DURATION,
-        arrivalAdjustedRefractionMagnitudePx: diagStatsOf(arrivalRefractionMag)
-      }
-    };
+    return { available: false, reason: "removed in the continuous-river redesign — see the comment above this function" };
   }
 
   // ==========================================================================
@@ -2066,6 +1396,15 @@
 
     if (materialPhase !== "solid") return;
 
+    // All four of these happen in the same synchronous tick, so the
+    // browser never paints an intermediate frame between them: the
+    // canvas (already showing an exact, zero-distortion copy of Home —
+    // liquidMix is still 0 here) becomes the visible surface in the same
+    // moment the live DOM is hidden and scroll is locked. See
+    // material-harness.css for the scrollbar-width compensation that
+    // keeps this handoff from shifting the page horizontally, and
+    // updateMaterialTransition()'s CLICK_SETTLE_DURATION hold for what
+    // happens immediately after.
     lockedScrollY = window.scrollY || window.pageYOffset || 0;
     document.body.style.top = `-${lockedScrollY}px`;
     document.documentElement.classList.add("mv-scroll-locked");
@@ -2138,24 +1477,6 @@
     // C400 checkpoint.
     worldMix = 0;
     worldPhaseStartedAt = 0;
-    // Crossing v3.1 addition: clear the new sub-stage tracking alongside
-    // the pre-existing worldMix/worldPhaseStartedAt clear above, so
-    // "Reset & Replay" reproduces clean FORMATION-first conditions every
-    // time — the same determinism guarantee v1's own worldMix/
-    // worldPhaseStartedAt reset already provided, now extended to cover
-    // PART B's new state.
-    revealSubStage = "formation";
-    formationToTransferAt = 0;
-    // Games Arrival Experiment 01 addition: clear Arrival's own state
-    // alongside the pre-existing revealSubStage/formationToTransferAt
-    // clear above, so "Reset & Replay" reproduces a clean pre-T3 Arrival
-    // state too (arrivalOpticalMix back to 1, its no-op value) — the same
-    // determinism guarantee this function already provides for every
-    // other stage of state, now extended to cover this experiment's
-    // addition. Purely additive.
-    arrivalPhase = "none";
-    arrivalStartedAt = 0;
-    arrivalOpticalMix = 1;
     clearWaterFramebuffers();
 
     // Candidate C, Stage C2 — restore each mode's own canonical resting
@@ -2196,141 +1517,53 @@
   function updateMaterialTransition(now) {
     if (materialPhase === "engaging") {
       const elapsed = now - phaseStartedAt;
-      const progress = easeMaterial(elapsed / LIQUID_ENGAGE_DURATION);
+      // CLICK_SETTLE_DURATION: liquidMix stays pinned at phaseStartingMix
+      // (0, on a fresh activation) for this opening slice of "engaging" —
+      // the canvas has just become the visible surface (see activate()),
+      // still showing an exact, zero-distortion copy of Home, and this
+      // hold keeps it that way for one deliberate beat before any motion
+      // begins, so the click's handoff and the liquid's first visible
+      // change read as two separate moments, not one.
+      const rampElapsed = Math.max(0, elapsed - CLICK_SETTLE_DURATION);
+      const progress = easeMaterial(rampElapsed / LIQUID_ENGAGE_DURATION);
       liquidMix = mixNumber(phaseStartingMix, 1, progress);
-      if (elapsed >= LIQUID_ENGAGE_DURATION) {
+      if (elapsed >= CLICK_SETTLE_DURATION + LIQUID_ENGAGE_DURATION) {
         liquidMix = 1;
         materialPhase = "liquid";
-        worldPhaseStartedAt = now; // crossing experiment addition — anchors WORLD_HOLD_DURATION below
+        worldPhaseStartedAt = now; // anchors LIQUID_HOLD_DURATION below
         setStatus("liquid", "liquid (holding)");
       }
       return;
     }
 
-    // --- Crossing experiment additions (this pass) ---
-    // Everything below is new; the "engaging" branch above (and its
-    // early return) is byte-identical in behavior to the locked C400
-    // checkpoint. liquidMix is already pinned at 1 by the time any of
-    // this runs — none of it touches liquidMix or the water simulation;
-    // it only drives worldMix, the new uWorldMix uniform (see
-    // MATERIAL_SHADER's blend logic).
+    // liquidMix is already pinned at 1 by the time any of this runs —
+    // none of it touches liquidMix or the water simulation; it only
+    // drives worldMix, the uWorldMix uniform MATERIAL_SHADER's atmosphere
+    // blend reads (see its own comment block).
     if (materialPhase === "liquid") {
       const heldFor = now - worldPhaseStartedAt;
-      if (heldFor >= WORLD_HOLD_DURATION) {
+      if (heldFor >= LIQUID_HOLD_DURATION) {
         materialPhase = "revealing";
-        worldPhaseStartedAt = now; // re-anchor: now marks the start of FORMATION's own clock
-        revealSubStage = "formation"; // v3.1 — explicit, though already this value from reset()/init
+        worldPhaseStartedAt = now; // re-anchor: now marks the start of the infusion ramp
         setStatus("liquid", "revealing");
       }
       return;
     }
 
-    // Crossing v3.1 addition (PART B) — replaces v3's single
-    // `worldMix = easeMaterial(elapsed / WORLD_REVEAL_DURATION)` ramp
-    // with two independently-clocked, independently-eased segments. The
-    // shader-facing contract is unchanged: worldMix still ranges
-    // continuously and monotonically 0->1 across "revealing", uFormationEnd
-    // is still exactly where MATERIAL_SHADER's hard gate sits, and every
-    // boundary guarantee proved in v3's NOTE.txt (worldBlend===0 at
-    // worldMix<=uFormationEnd, worldBlend===1 at worldMix===1) still holds
-    // — only HOW worldMix's value is produced over time changed; the
-    // shader that consumes it is byte-identical to v3.
-    if (materialPhase === "revealing" && revealSubStage === "formation") {
+    // The single, continuous worldMix ramp: one eased clock across the
+    // whole "revealing" phase, replacing the earlier four-segment split
+    // (see this file's top-of-file comment for why). worldMix ranges
+    // continuously and monotonically 0->1 — the same contract
+    // MATERIAL_SHADER's atmosphere-blend boundary guarantee already
+    // relies on.
+    if (materialPhase === "revealing") {
       const elapsed = now - worldPhaseStartedAt;
-      // Linear, not eased: constant nonzero velocity for FORMATION's
-      // entire duration, deliberately — smoothstep's own slow start is
-      // exactly the "dead hold where nothing happens" the instruction
-      // warns against, and FORMATION's own signal (displacement only, no
-      // darkening, per this pass's frozen constraint) is already the
-      // more subtle of the two stages; it should not also open at
-      // near-zero velocity.
-      const progress = Math.min(Math.max(elapsed / FORMATION_DURATION, 0), 1);
-      worldMix = STAGE_A_FORMATION_END * progress;
-      if (elapsed >= FORMATION_DURATION) {
-        worldMix = STAGE_A_FORMATION_END;
-        revealSubStage = "recognition"; // v3.4: was "transfer" through v3.3 — see the segment split below
-        formationToTransferAt = now; // T0: the FORMATION -> FIRST SIGHT event, still the same timestamp semantics as before
-        worldPhaseStartedAt = now; // re-anchor: now marks the start of RECOGNITION's own, independent clock
-        setStatus("liquid", "revealing"); // status text unchanged — "revealing" still covers all of Stage B/C externally
-      }
-      return;
-    }
-
-    // --- Crossing v3.4 correction (T0-T3 choreography) ---
-    // Replaces v3.3's single "transfer" segment (one clock, one linear
-    // ramp, 2000ms) with three independently-clocked, independently-eased
-    // segments — RECOGNITION, DISCOVERY, PASSAGE — diagnosed as necessary
-    // BEFORE this change (defect-analysis/v34-t0t3-dense-diagnosis.js
-    // against the unmodified v3.3 build): the old single segment put the
-    // first non-zero Games contribution at only +296ms after T0 on both
-    // devices, with no dedicated interval for a viewer to register "an
-    // opening has formed" first. See the RECOGNITION_DURATION/
-    // DISCOVERY_DURATION/PASSAGE_DURATION/DISCOVERY_GAMES_TIME_SPLIT
-    // constants above for the full rationale. MATERIAL_SHADER itself is
-    // NOT touched by this segment split — worldMix and its derived
-    // gamesTimeInput remain exactly the values the shader already expects
-    // and already has proven boundary guarantees for; only HOW worldMix
-    // reaches those values over time changes, same as every prior pacing
-    // correction in this lineage (v3.1, v3.3).
-    if (materialPhase === "revealing" && revealSubStage === "recognition") {
-      const elapsed = now - worldPhaseStartedAt;
-      // worldMix does not move at all during RECOGNITION — held EXACTLY
-      // at STAGE_A_FORMATION_END, which by MATERIAL_SHADER's own existing,
-      // unchanged boundary proof means gamesTimeInput===0 and
-      // worldBlend===0 for every pixel, for this entire interval — Games
-      // contribution is zero by construction, not by a new gate. The
-      // water simulation (updateWater()/ambientWater()) is NOT paused —
-      // it is driven by motionTime/real time independently of worldMix —
-      // so the aperture keeps visibly evolving throughout, per
-      // instruction section 5 ("the water may continue moving
-      // organically... but Games contribution must remain zero").
-      worldMix = STAGE_A_FORMATION_END;
-      if (elapsed >= RECOGNITION_DURATION) {
-        revealSubStage = "discovery";
-        worldPhaseStartedAt = now; // re-anchor: DISCOVERY's own independent clock starts now (T1)
-      }
-      return;
-    }
-
-    if (materialPhase === "revealing" && revealSubStage === "discovery") {
-      const elapsed = now - worldPhaseStartedAt;
-      // Quadratic ease-IN (progress^2): near-zero velocity right at T1,
-      // accelerating toward T2 — the deliberate "contained, gradual,
-      // still subordinate to Home" first-sight beat instruction section 6
-      // asks for. Maps DISCOVERY's own progress 0->1 onto the
-      // gamesTimeInput range [0, DISCOVERY_GAMES_TIME_SPLIT] (0.4) — a
-      // gamesTimeInput value this pass's own diagnosis of the unchanged
-      // shader math (v3.3's checkpoint table) confirmed still keeps
-      // home-contribution at ~90% on both devices, i.e. genuinely small
-      // and contained, not an arbitrary cutoff.
-      const rawProgress = Math.min(Math.max(elapsed / DISCOVERY_DURATION, 0), 1);
-      const eased = rawProgress * rawProgress; // ease-in
-      const gamesTimeInput = eased * DISCOVERY_GAMES_TIME_SPLIT;
-      worldMix = STAGE_A_FORMATION_END + (1 - STAGE_A_FORMATION_END) * gamesTimeInput;
-      if (elapsed >= DISCOVERY_DURATION) {
-        revealSubStage = "passage";
-        worldPhaseStartedAt = now; // re-anchor: PASSAGE's own independent clock starts now (T2)
-      }
-      return;
-    }
-
-    if (materialPhase === "revealing" && revealSubStage === "passage") {
-      const elapsed = now - worldPhaseStartedAt;
-      // Quadratic ease-OUT (1-(1-progress)^2): fast at T2 (continuing
-      // DISCOVERY's exit velocity — "rate of transfer may increase
-      // organically"), decelerating toward T3 — "late passage should
-      // settle rather than snap," per instruction section 10. Maps
-      // PASSAGE's own progress 0->1 onto the REMAINING gamesTimeInput
-      // range [DISCOVERY_GAMES_TIME_SPLIT, 1.0].
-      const rawProgress = Math.min(Math.max(elapsed / PASSAGE_DURATION, 0), 1);
-      const inv = 1 - rawProgress;
-      const eased = 1 - inv * inv; // ease-out
-      const gamesTimeInput = DISCOVERY_GAMES_TIME_SPLIT + (1 - DISCOVERY_GAMES_TIME_SPLIT) * eased;
-      worldMix = STAGE_A_FORMATION_END + (1 - STAGE_A_FORMATION_END) * gamesTimeInput;
-      if (elapsed >= PASSAGE_DURATION) {
+      const progress = easeMaterial(elapsed / INFUSION_DURATION);
+      worldMix = progress;
+      if (elapsed >= INFUSION_DURATION) {
         worldMix = 1;
         materialPhase = "revealed";
-        setStatus("liquid", "revealed (holding)");
+        setStatus("liquid", "revealed (atmosphere holding)");
       }
       return;
     }
@@ -2338,62 +1571,22 @@
     // auto-solidify, no auto-replay loop. Ambient motion keeps running
     // because ambientWater() is a function of uTime alone and is
     // evaluated every frame regardless of simulation/impulse/world state.
-    // This is the experiment's required held endpoint (validation item 10).
+    // phase-a1-integration.js is what ends this hold, after
+    // ATMOSPHERE_HOLD_DURATION, by navigating away — this file itself
+    // never navigates or knows about the Games document.
   }
 
-  // --- Games Arrival Experiment 01 addition ---
-  // Entirely additive: reads materialPhase (never writes it), never
-  // touches worldMix/liquidMix/revealSubStage/any Crossing-owned state.
-  // Only ever produces one visible effect — driving arrivalOpticalMix from
-  // 1 (no-op, matches the entire approved Crossing) down to exactly 0 —
-  // via the single uArrivalOpticalMix uniform already wired into
-  // boundedSlope. Does not touch the underlying water simulation
-  // (updateWater/runWaterStep), the ambient analytic field, or any
-  // canonical C400 constant (amplitude/refraction/damping/propagation) —
-  // per instruction section 8, none of that may be retuned.
-  function updateArrival(now) {
-    if (materialPhase !== "revealed") {
-      // Not at T3 yet — the approved Crossing's own state machine is
-      // still running. Arrival stays fully inert (arrivalPhase "none",
-      // arrivalOpticalMix pinned at 1, a pure no-op on boundedSlope).
-      return;
-    }
-
-    if (arrivalPhase === "none") {
-      // First frame T3 is observed — anchor Arrival's own independent
-      // clock here. This is the "hard boundary" instruction section 2
-      // requires: nothing about this frame's materialPhase/worldMix/
-      // liquidMix/canvas content changes because of this branch.
-      arrivalPhase = "active";
-      arrivalStartedAt = now;
-    }
-
-    if (arrivalPhase === "active") {
-      const elapsed = now - arrivalStartedAt;
-      const rawProgress = Math.min(Math.max(elapsed / ARRIVAL_DURATION, 0), 1);
-      // Cubic ease-out (1-(1-p)^3): fastest motion immediately after T3,
-      // decelerating into the settle — continues the Crossing's own
-      // "settle rather than snap" ending quality (PASSAGE_DURATION above
-      // uses the same ease-out family, one power lower) rather than
-      // introducing an unrelated pacing feel at the exact boundary where
-      // continuity matters most (instruction section 3).
-      const inv = 1 - rawProgress;
-      const eased = 1 - inv * inv * inv;
-      arrivalOpticalMix = 1 - eased;
-      if (elapsed >= ARRIVAL_DURATION) {
-        arrivalOpticalMix = 0;
-        arrivalPhase = "stable";
-      }
-    }
-    // arrivalPhase === "stable": arrivalOpticalMix stays pinned at exactly
-    // 0 indefinitely — no auto-reset, mirroring materialPhase==="revealed"
-    // holding indefinitely above. Reset & Replay (resetBtn) already
-    // returns materialPhase to "solid"; that same handler additionally
-    // resets arrivalPhase/arrivalOpticalMix back to their initial values
-    // (see the Games Arrival Experiment 01 addition inside the reset
-    // handler, below), so Reset & Replay reproduces a clean Arrival state
-    // too, not just a clean Crossing state.
-  }
+  // updateArrival() (the post-"revealed" arrivalPhase/arrivalOpticalMix
+  // state machine) was removed in the continuous-river redesign: its only
+  // effect was calming homeColor's own refraction after materialPhase
+  // reached "revealed", via uArrivalOpticalMix on boundedSlope — and by
+  // the time MATERIAL_SHADER's atmosphereBlend has converged to 1
+  // (guaranteed at uWorldMix=1, i.e. exactly when "revealed" begins),
+  // homeColor no longer contributes to gl_FragColor at all, so that
+  // calming had no visible effect left to produce. Removing it also
+  // removes roughly 2.2s of hold time (ARRIVAL_DURATION) that was no
+  // longer buying anything on screen — a genuine simplification, not
+  // merely a rename.
 
   function runWaterStep() {
     const sourceIndex = waterResources.readIndex;
@@ -2484,13 +1677,6 @@
     // the ambient overlay or the activation ramp.
     motionTime += delta * DEFAULTS.speed * MOTION_RATE;
     updateMaterialTransition(now);
-    // Games Arrival Experiment 01 addition: evaluated every frame, after
-    // updateMaterialTransition(now) has already run for this frame — so
-    // Arrival only ever observes a materialPhase value the approved
-    // Crossing's own logic has already finished settling for this tick.
-    // Purely additive; does not change delta, motionTime, or anything
-    // updateWater() below reads.
-    updateArrival(now);
     // True, uncapped elapsed time since the last update() call — only
     // used by updateWater() in mode B ("retain"); mode A never reads it.
     const rawDelta = Math.max((now - previousFrameTime) / 1000, 0);
@@ -2535,16 +1721,6 @@
     // Everything else in draw() above and below this line is unchanged
     // from the locked C400 checkpoint.
     gl.uniform1f(materialLoc.worldMix, worldMix);
-    // Crossing v3 addition: single source of truth is the JS constant
-    // STAGE_A_FORMATION_END, set every frame here (cheap — one float
-    // uniform upload) so the shader-side gate can never drift from the
-    // JS-side stage boundary the report describes.
-    gl.uniform1f(materialLoc.formationEnd, STAGE_A_FORMATION_END);
-    // Games Arrival Experiment 01 addition: 1.0 for the entire approved
-    // Crossing (a pure no-op — see uArrivalOpticalMix's shader-side
-    // comment), only ever driven below 1.0 by updateArrival(), which
-    // never runs before materialPhase==="revealed" (T3).
-    gl.uniform1f(materialLoc.arrivalOpticalMix, arrivalOpticalMix);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
     // Diagnostic-only marks below — read state that draw() just used
@@ -2610,64 +1786,16 @@
     const wallClockAgeS = materialPhase === "solid" ? 0 : Math.max(0, (now - phaseStartedAt) / 1000);
     const simAgeS = diagCumulativeSteps / simulationRate;
     const fpsText = lastFpsValue === null ? "—" : String(lastFpsValue);
-    // Crossing v1/v2 addition, RECOMPUTED for v3 (this pass): a coarse,
-    // GLOBAL Home/Games contribution readout. v1/v2 read this directly
-    // off raw worldMix (1-worldMix / worldMix); that would now be
-    // actively misleading, since v3's MATERIAL_SHADER gates games
-    // contribution to exactly zero until worldMix passes
-    // STAGE_A_FORMATION_END (see material-engine.js's gamesTimeInput) —
-    // displaying raw worldMix here would show a nonzero "games%" during
-    // Stage A even though not a single Games pixel is contributing to
-    // gl_FragColor anywhere on the canvas. gamesTimeInputJs mirrors the
-    // shader's own gamesTimeInput formula exactly (JS-side restatement of
-    // the same remap, for the diagnostic strip only — does not feed back
-    // into any uniform or state), so what this strip reports matches what
-    // the shader is actually doing. stageLabel is the new addition this
-    // pass: which of the three ordered stages worldMix currently falls
-    // in. v3.1: now read directly off revealSubStage (the internal
-    // ground truth PART B's own independently-clocked segments set),
-    // rather than re-derived from a worldMix/STAGE_A_FORMATION_END
-    // comparison — semantically the same boundary, but this avoids any
-    // possible float-precision mismatch between the two, and is accurate
-    // even in the one frame where FORMATION completes exactly at
-    // worldMix===STAGE_A_FORMATION_END. B and C are not spatially/
-    // temporally separated by a hard boundary (see NOTE.txt), so both
-    // are still reported together as "B/C:reveal" once in the transfer
-    // sub-stage.
-    // v3.4: revealSubStage now has four values instead of two — label each
-    // distinctly on the diagnostic strip (T0/T1/T2/T3 naming, matching the
-    // instruction's own vocabulary) so a real-device recording can show
-    // exactly which named segment is active at every frame, not just an
-    // inferred "before/after" split.
-    const STAGE_LABELS = {
-      formation: "A:formation",
-      recognition: "B0:recognition",
-      discovery: "B1:discovery",
-      passage: "C:passage"
-    };
-    const stageLabel = materialPhase === "revealing"
-      ? (STAGE_LABELS[revealSubStage] || "B/C:reveal")
-      : (worldMix <= STAGE_A_FORMATION_END ? "A:formation" : "C:passage");
-    const gamesTimeInputJs = Math.min(1, Math.max(0,
-      (worldMix - STAGE_A_FORMATION_END) / Math.max(1 - STAGE_A_FORMATION_END, 0.0001)
-    ));
-    const homePct = Math.round((1 - gamesTimeInputJs) * 100);
-    const gamesPct = Math.round(gamesTimeInputJs * 100);
-    // Games Arrival Experiment 01 addition: a separate "arrival:" field on
-    // the diagnostic strip, per instruction section 17 — CROSSING for the
-    // entire approved sequence through T3 (byte/behavior-identical to the
-    // locked checkpoint's own stage/phase/age/steps/fps/home-games%
-    // reporting above, untouched), T3 for the single frame Arrival's own
-    // clock has not yet started, ARRIVAL while arrivalOpticalMix is
-    // ramping, STABLE once pinned at exactly 0 — so a real-device
-    // recording can show exactly where the hard boundary falls.
-    const arrivalLabel = materialPhase !== "revealed"
-      ? "CROSSING"
-      : (arrivalPhase === "none" ? "T3" : arrivalPhase === "active" ? "ARRIVAL" : "STABLE");
+    // worldMix now IS the atmosphere-blend driver directly (no more
+    // formation-split remap — see MATERIAL_SHADER's atmosphereOnset/
+    // atmosphereCoverage), so this strip reports it as-is: a plain
+    // home/atmosphere percentage split, not a re-derived "gated" value.
+    const homePct = Math.round((1 - worldMix) * 100);
+    const atmospherePct = Math.round(worldMix * 100);
     liveReadoutEl.textContent =
-      `mode: ${modeLabel} · phase: ${stateLabel} · stage: ${stageLabel} · age: ${wallClockAgeS.toFixed(1)}s · ` +
+      `mode: ${modeLabel} · phase: ${stateLabel} · age: ${wallClockAgeS.toFixed(1)}s · ` +
       `steps: ${diagCumulativeSteps} (~${simAgeS.toFixed(1)}s) · ${fpsText} fps · ` +
-      `home/games: ${homePct}/${gamesPct}% (global, gated) · arrival: ${arrivalLabel}`;
+      `home/atmosphere: ${homePct}/${atmospherePct}%`;
   }
 
   function render(now) {
@@ -2965,13 +2093,8 @@
         liquidMix: gl.getUniformLocation(materialProgram, "uLiquidMix"),
         coverScale: gl.getUniformLocation(materialProgram, "uCoverScale"),
         coverOffset: gl.getUniformLocation(materialProgram, "uCoverOffset"),
-        // Crossing experiment additions (v1/v2).
         games: gl.getUniformLocation(materialProgram, "uGames"),
-        worldMix: gl.getUniformLocation(materialProgram, "uWorldMix"),
-        // Crossing v3 addition.
-        formationEnd: gl.getUniformLocation(materialProgram, "uFormationEnd"),
-        // Games Arrival Experiment 01 addition.
-        arrivalOpticalMix: gl.getUniformLocation(materialProgram, "uArrivalOpticalMix")
+        worldMix: gl.getUniformLocation(materialProgram, "uWorldMix")
       };
       waterLoc = {
         previousWater: gl.getUniformLocation(waterProgram, "uPreviousWater"),
@@ -3261,32 +2384,21 @@
         getPhase: () => materialPhase, // "solid" | "engaging" | "liquid" | "revealing" | "revealed"
         getWorldMix: () => worldMix,
         getWorldPhaseStartedAt: () => worldPhaseStartedAt,
-        getWorldDurations: () => ({
-          hold: WORLD_HOLD_DURATION,
-          reveal: WORLD_REVEAL_DURATION, // now a derived total (FORMATION_DURATION + REVEAL_TRANSFER_DURATION), see below
-          formation: FORMATION_DURATION,
-          transfer: REVEAL_TRANSFER_DURATION, // retained: sum of the three v3.4 segments below, for anything reading the old combined figure
-          // v3.4 additions — the three independent segments this pass split "transfer" into:
-          recognition: RECOGNITION_DURATION,
-          discovery: DISCOVERY_DURATION,
-          passage: PASSAGE_DURATION
+        // continuous-river redesign: a flat timeline object, one entry per
+        // named perceptual beat (see this file's top-of-file comment for
+        // what each is for). Replaces the old nested
+        // hold/reveal/formation/transfer/recognition/discovery/passage
+        // shape, which described stages this file no longer implements.
+        getTimeline: () => ({
+          clickSettle: CLICK_SETTLE_DURATION,
+          liquidEngage: LIQUID_ENGAGE_DURATION,
+          liquidHold: LIQUID_HOLD_DURATION,
+          infusion: INFUSION_DURATION,
+          atmosphereHold: ATMOSPHERE_HOLD_DURATION
         }),
-        // v3.1 additions — internal ground truth for the FORMATION ->
-        // FIRST SIGHT event, for verification/reporting.
-        getRevealSubStage: () => revealSubStage, // v3.4: "formation" | "recognition" | "discovery" | "passage" — meaningful only while getPhase()==="revealing"
-        getFormationToTransferAt: () => formationToTransferAt, // performance.now() timestamp of the last FORMATION -> FIRST SIGHT event, 0 if not yet reached this activation
         hideControls: () => { if (controlsEl) controlsEl.classList.add("mv-controls-hidden"); },
         showControls: () => { if (controlsEl) controlsEl.classList.remove("mv-controls-hidden"); },
-        isControlsHidden: () => !!(controlsEl && controlsEl.classList.contains("mv-controls-hidden")),
-        // Games Arrival Experiment 01 additions — analogous read-only
-        // accessors for Arrival's own, entirely separate state machine.
-        // getPhase()/getWorldMix()/everything above remain exactly what
-        // they were in the locked v3.4 checkpoint; these are new, additive
-        // surface only.
-        getArrivalPhase: () => arrivalPhase, // "none" | "active" | "stable"
-        getArrivalOpticalMix: () => arrivalOpticalMix, // 1 (no-op, matches entire approved Crossing) -> 0 (Arrival-stable)
-        getArrivalStartedAt: () => arrivalStartedAt, // performance.now() timestamp Arrival's own clock was anchored at (T3), 0 if not yet reached
-        getArrivalDuration: () => ARRIVAL_DURATION
+        isControlsHidden: () => !!(controlsEl && controlsEl.classList.contains("mv-controls-hidden"))
       };
     } catch (error) {
       setStatus("fallback", `init failed: ${error.message}`);

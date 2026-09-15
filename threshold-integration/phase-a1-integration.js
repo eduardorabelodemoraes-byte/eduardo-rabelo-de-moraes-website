@@ -80,6 +80,34 @@
 // when the live viewport matches one of those two references and shows the
 // same letterboxing/cropping characteristic CHOREOGRAPHY.txt already
 // documents as accepted for the approved experiment otherwise.
+//
+// continuous-river redesign (this pass, on top of everything above, which
+// still describes ENTRY unchanged): material-engine.js's post-liquid
+// choreography and its separate post-"revealed" Arrival state machine were
+// both replaced by one continuous materialPhase run — solid -> engaging ->
+// liquid -> revealing -> revealed — ending in a single procedural
+// atmosphere (see that file's own header) instead of a Games-texture blend
+// held at a named "stable" Arrival sub-phase. This adapter's EXIT side is
+// updated to match:
+//   - beginInstrumentation()/tick() no longer read the removed
+//     getRevealSubStage()/getArrivalPhase() engine methods. Navigation now
+//     triggers once materialPhase first reads "revealed" AND
+//     ATMOSPHERE_HOLD_DURATION (crossing.getTimeline().atmosphereHold) has
+//     elapsed since — i.e. once the procedural atmosphere has actually been
+//     held, fully converged, for a deliberate beat, not the instant it
+//     first arrives. writeHandoffMarker() + the double-rAF-deferred
+//     window.location.assign() are otherwise unchanged from A2/A3: this
+//     remains ordinary same-origin navigation, not a capture/iframe trick.
+//   - The Expertise-visibility-gated prewarm observer (armPrewarmObserver)
+//     is replaced by an unconditional, load-time prewarm
+//     (armEagerPrewarm()): the new engine timeline is longer and more
+//     deliberate end-to-end, so prewarm has less slack to hide behind — the
+//     click's "immediate but smooth response" the redesign asks for
+//     depends on prewarm already being complete well before any click,
+//     not merely before the click if the visitor happens to linger on
+//     Expertise. Since armPrewarmObserver only ever gated ensureEngineReady()
+//     — already idempotent and already the click path's own fallback — this
+//     is a strictly earlier call to the same function, not a new code path.
 
 (() => {
   "use strict";
@@ -97,11 +125,6 @@
   // candidate targets the existing, real link by its actual href instead
   // of requiring a new attribute.
   const ENTRY_SELECTOR = 'a.expertise__link[href="game-localization/"]';
-  // A4 addition: the prewarm trigger. The real "Game Localization" link
-  // lives inside this section (see index.html) — a visitor cannot activate
-  // the entry without this section having already been scrolled into view,
-  // so it is both a safe and a maximally-early prewarm signal.
-  const PREWARM_TRIGGER_SELECTOR = "#expertise";
   const BASE = "threshold-integration/";
   const READY_TIMEOUT_MS = 8000;
   const READY_POLL_MS = 40;
@@ -144,7 +167,11 @@
     activatedAt: null,
     events: [],
     fallback: null,
-    arrivalStableAt: null,
+    // continuous-river redesign: renamed from arrivalStableAt — the removed
+    // Arrival state machine's "stable" sub-phase no longer exists. This now
+    // records the tMs at which materialPhase had been "revealed" for a full
+    // ATMOSPHERE_HOLD_DURATION, i.e. the moment navigation was triggered.
+    atmosphereSettledAt: null,
     handoffMarkerWritten: null,
     navigateInitiatedAt: null,
     reentryEvents: [],
@@ -351,8 +378,15 @@
 
   function beginInstrumentation(activatedAt, link) {
     window.__a1Instrumentation.activatedAt = activatedAt;
-    let lastPhase = null, lastSubStage = null, lastArrivalPhase = null;
+    let lastPhase = null;
     let prefetchIssued = false;
+    // continuous-river redesign: the removed Arrival state machine's
+    // "stable" sub-phase used to be the navigation trigger by itself. Its
+    // replacement is a duration condition (materialPhase === "revealed" for
+    // a full ATMOSPHERE_HOLD_DURATION), so this tracks when "revealed" was
+    // first observed rather than latching a single boolean sub-phase.
+    let revealedAt = null;
+    let navigationTriggered = false;
 
     function record(label) {
       const crossing = window.__mvCrossing;
@@ -360,8 +394,7 @@
         label,
         tMs: Math.round(performance.now() - activatedAt),
         phase: crossing ? crossing.getPhase() : null,
-        revealSubStage: crossing ? crossing.getRevealSubStage() : null,
-        arrivalPhase: crossing ? crossing.getArrivalPhase() : null
+        worldMix: crossing ? crossing.getWorldMix() : null
       };
       window.__a1Instrumentation.events.push(entry);
       log(label, entry);
@@ -372,37 +405,46 @@
       const crossing = window.__mvCrossing;
       if (!crossing) { window.requestAnimationFrame(tick); return; }
       const phase = crossing.getPhase();
-      const subStage = crossing.getRevealSubStage();
-      const arrivalPhase = crossing.getArrivalPhase();
-      if (phase !== lastPhase) { record(`materialPhase -> ${phase}`); lastPhase = phase; }
-      if (subStage !== lastSubStage) { record(`revealSubStage -> ${subStage}`); lastSubStage = subStage; }
-      if (arrivalPhase !== lastArrivalPhase) { record(`arrivalPhase -> ${arrivalPhase}`); lastArrivalPhase = arrivalPhase; }
+      if (phase !== lastPhase) {
+        record(`materialPhase -> ${phase}`);
+        if (phase === "revealed") revealedAt = performance.now();
+        lastPhase = phase;
+      }
 
-      // A3 Refinement (4): fire the EXIT prefetch hint as early as
-      // possible — the first tick where materialPhase has left "solid" —
-      // to give the browser the maximum possible lead time (the entire
-      // remaining Crossing + Arrival duration) to warm its cache for the
-      // real /game-localization/ document before the unchanged A2
-      // handoff navigates to it. One-shot per activation; harmless no-op
-      // on a page that already has the hint element (see
-      // prefetchGamesDocument's own idempotency guard).
+      // A3 Refinement (4), unchanged — fire the EXIT prefetch hint as
+      // early as possible: the first tick where materialPhase has left
+      // "solid," giving the browser the maximum possible lead time (the
+      // entire remaining passage) to warm its cache for the real
+      // /game-localization/ document before the handoff below navigates
+      // to it. One-shot per activation; harmless no-op on a page that
+      // already has the hint element (see prefetchGamesDocument's own
+      // idempotency guard).
       if (!prefetchIssued && phase && phase !== "solid") {
         prefetchIssued = true;
         prefetchGamesDocument(link, activatedAt);
       }
 
-      if (arrivalPhase === "stable") {
-        window.__a1Instrumentation.arrivalStableAt = Math.round(performance.now() - activatedAt);
-        const markerWritten = writeHandoffMarker();
-        window.__a1Instrumentation.handoffMarkerWritten = markerWritten;
-        window.requestAnimationFrame(() => {
+      // continuous-river redesign: navigate once the procedural atmosphere
+      // has been fully "revealed" AND held for ATMOSPHERE_HOLD_DURATION —
+      // read live from the engine's own getTimeline() rather than
+      // duplicating the constant here, so this adapter can never drift out
+      // of sync with material-engine.js's actual timeline.
+      if (!navigationTriggered && phase === "revealed" && revealedAt !== null) {
+        const atmosphereHold = crossing.getTimeline().atmosphereHold;
+        if (performance.now() - revealedAt >= atmosphereHold) {
+          navigationTriggered = true;
+          window.__a1Instrumentation.atmosphereSettledAt = Math.round(performance.now() - activatedAt);
+          const markerWritten = writeHandoffMarker();
+          window.__a1Instrumentation.handoffMarkerWritten = markerWritten;
           window.requestAnimationFrame(() => {
-            window.__a1Instrumentation.navigateInitiatedAt = Math.round(performance.now() - activatedAt);
-            log("navigating to target document", { href: link.href });
-            window.location.assign(link.href);
+            window.requestAnimationFrame(() => {
+              window.__a1Instrumentation.navigateInitiatedAt = Math.round(performance.now() - activatedAt);
+              log("navigating to target document", { href: link.href });
+              window.location.assign(link.href);
+            });
           });
-        });
-        return;
+          return;
+        }
       }
       window.requestAnimationFrame(tick);
     }
@@ -466,35 +508,23 @@
     return engineReadyPromise;
   }
 
-  // A4 addition — prewarm trigger. Fires ensureEngineReady() as soon as
-  // the Expertise section (which contains the real Game Localization
-  // link) is at all visible, giving the frozen engine's own idle-time C400
-  // prewarm (schedulePrewarmC400(), unchanged/frozen) real idle time to
-  // complete before any click, on top of removing html2canvas/runtime
-  // capture from the critical path entirely. Purely additive: if this
-  // observer never fires (e.g. a visitor reaches the link some other way)
-  // the click handler's own ensureEngineReady() call below still performs
-  // the identical work on the click path itself, same as A1/A2/A3 always
-  // did minus html2canvas.
-  function armPrewarmObserver() {
-    const target = document.querySelector(PREWARM_TRIGGER_SELECTOR);
-    if (!target || typeof window.IntersectionObserver !== "function") return;
-    const observer = new IntersectionObserver((entries) => {
-      for (const entry of entries) {
-        if (entry.isIntersecting) {
-          observer.disconnect();
-          ensureEngineReady().catch((error) => {
-            // Swallow here — this is a best-effort prewarm. Any real
-            // failure surfaces identically through the click handler's
-            // own ensureEngineReady() call and its existing
-            // fallbackNavigate() path.
-            log("prewarm failed (non-fatal, click path will retry)", error && error.message ? error.message : String(error));
-          });
-          return;
-        }
-      }
-    }, { rootMargin: "0px", threshold: 0 });
-    observer.observe(target);
+  // continuous-river redesign — was armPrewarmObserver(), gated on the
+  // Expertise section (PREWARM_TRIGGER_SELECTOR) scrolling into view. Now
+  // fires ensureEngineReady() unconditionally, as soon as this script runs,
+  // so the frozen engine's own idle-time C400 prewarm (schedulePrewarmC400(),
+  // unchanged) gets the maximum possible head start rather than only the
+  // time between Expertise becoming visible and an eventual click. Purely
+  // additive and still best-effort: ensureEngineReady() is idempotent, so
+  // this is strictly an earlier call to the exact same function the click
+  // handler already calls as its own fallback — no new code path, no risk
+  // of double-initializing the engine.
+  function armEagerPrewarm() {
+    ensureEngineReady().catch((error) => {
+      // Swallow here — this is a best-effort prewarm. Any real failure
+      // surfaces identically through the click handler's own
+      // ensureEngineReady() call and its existing fallbackNavigate() path.
+      log("prewarm failed (non-fatal, click path will retry)", error && error.message ? error.message : String(error));
+    });
   }
 
   async function bootstrap(link) {
@@ -528,7 +558,7 @@
     bootstrap(link);
   }, true);
 
-  armPrewarmObserver();
+  armEagerPrewarm();
 
   // Correction 3 — reentry / Back. The first passage must not permanently
   // latch this candidate: a visitor who completes a Crossing, lands on the
