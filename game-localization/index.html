@@ -8,7 +8,23 @@
   <meta name="description" content="An editorial narrative about game localization by Eduardo Rabelo de Moraes.">
   <title>Game Localization — Eduardo Rabelo de Moraes</title>
   <style>html,body{margin:0;background:#000;color:#f6f3ff}</style>
-  <script>(()=>{const r=document.documentElement;r.classList.add("js");setTimeout(()=>{if(!r.classList.contains("experience-started"))r.classList.add("experience-failsafe","experience-started")},2200)})();</script>
+  <!-- experiment/liquid-threshold-passage: this inline script's own peek
+       at the threshold-handoff marker (same key/shape/validation
+       script.js's own readHandoffMarker() uses, duplicated here
+       read-only — this call does NOT remove the sessionStorage item, so
+       script.js's later, real consuming read is completely unaffected)
+       adds the "threshold-handoff" class as early as a document can add
+       anything: before first paint, before styles.css or script.js have
+       even started loading. Without this, that class would only arrive
+       once the deferred script.js runs beginThresholdHandoffReveal(),
+       leaving a window in which the ordinary
+       html.js:not(.experience-started) rule (opacity:0, black
+       background) could paint first — exactly the black flash this
+       experiment exists to remove for passage arrivals. Does not add
+       experience-started or experience-failsafe: the deferred
+       script.js's own beginThresholdHandoffReveal() still owns that
+       decision, unchanged. -->
+  <script>(()=>{const r=document.documentElement;r.classList.add("js");try{const raw=sessionStorage.getItem("phase1dThresholdHandoff");if(raw){const m=JSON.parse(raw);const age=Date.now()-m.stableAt;if(m.version===1&&m.source==="threshold-integration-phase1d"&&Number.isFinite(m.stableAt)&&age>=0&&age<=10000){r.classList.add("threshold-handoff")}}}catch(e){}setTimeout(()=>{if(!r.classList.contains("experience-started"))r.classList.add("experience-failsafe","experience-started")},2200)})();</script>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lora:ital,opsz,wght@0,14..32,400..600;1,14..32,400..500&family=Inter:wght@400..700&family=IBM+Plex+Mono:wght@400;600&display=swap">
   <link rel="stylesheet" href="styles.css"><script src="script.js" defer></script>
 </head><body class="experience-page">

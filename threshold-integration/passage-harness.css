@@ -1,0 +1,142 @@
+/* passage-harness.css — experiment/liquid-threshold-passage
+   Minimal, purpose-built for this architecture only. No shared history
+   with material-harness.css beyond the one genuinely-reusable fix
+   (scrollbar-gutter: stable) — everything else here exists because this
+   experiment's DOM shape (a live, filtered #mv-liquid-wrap plus a
+   canvas, rather than a hidden DOM plus a canvas) is different. */
+
+#mv-liquid-wrap {
+  display: block;
+  margin: 0;
+  padding: 0;
+  /* filter and opacity are driven per-frame by passage-engine.js during
+     the transition; outside of it this element is inert (no filter, no
+     opacity change), so it is visually and structurally a no-op wrapper
+     around Home's own header/main/footer. */
+}
+
+#mv-canvas {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 999998;
+  display: block;
+  opacity: 0;
+  pointer-events: none;
+}
+
+html.mv-active #mv-canvas.is-visible {
+  pointer-events: none; /* the canvas is never interactive — nothing to click during the passage */
+}
+
+/* Reserve the scrollbar gutter permanently, from page load, never only
+   while locked. A real, measured bug found during this experiment's own
+   pixel-diff testing: gating `scrollbar-gutter: stable` behind
+   .mv-scroll-locked means the reservation switches on at the exact
+   moment of lock. In an environment whose native scrollbar is an overlay
+   (no layout width taken pre-lock), that switch-on does not compensate
+   for a disappearing scrollbar — it introduces a brand-new ~15px width
+   reservation that was not there a frame earlier, narrowing body/content
+   width and reflowing every line of text (confirmed via
+   documentElement/body clientWidth before/after: 1440 -> 1425 the
+   instant the class was added, with a matching text-glyph-shaped pixel
+   diff growing left-to-right exactly as reflowed text would). Declaring
+   the gutter unconditionally means whatever the browser's real scrollbar
+   behavior is, the reservation already happened seconds or minutes
+   before any click — same principle as the identity DOM filter in
+   prepare(): a one-time rendering-path change must happen at page-load
+   time, never at click time. */
+html {
+  scrollbar-gutter: stable;
+}
+
+/* The rest of the lock — actually preventing scroll — still only
+   applies while locked; only the gutter reservation above needed to be
+   permanent. */
+html.mv-scroll-locked {
+  overflow: hidden !important;
+  height: 100% !important;
+  overscroll-behavior: none;
+}
+
+/* body is deliberately NOT height:100% here (a bug caught during testing:
+   body is shifted up by activate()'s `top:-scrollY0px`, and a body
+   height clamped to just 100vh would then fall short of the viewport's
+   bottom edge by exactly scrollY0 — undershooting and cutting off real
+   content, invisible in every prior architecture only because the live
+   DOM was hidden the instant a canvas took over, and actually visible
+   here because #mv-liquid-wrap stays on screen for several seconds).
+   Leaving body at its natural (full page) height and letting `top`
+   shift it, exactly like the ordinary "scroll lock via position:fixed"
+   pattern this is, is what keeps the correct slice aligned. */
+html.mv-scroll-locked body {
+  overflow: hidden !important;
+  overscroll-behavior: none;
+  position: fixed;
+  left: 0;
+  right: 0;
+  width: 100%;
+}
+
+/* Minimal control strip — Activate / Reset / status only, for manual and
+   automated (Playwright) testing. Never covers more than a small corner,
+   never affects canvas/GL/DOM-filter state beyond calling activate()/
+   reset() through the same public entry points a real click uses. */
+#mv-controls {
+  position: fixed;
+  z-index: 999999;
+  top: 0.6rem;
+  right: 0.6rem;
+  max-width: calc(100vw - 1.2rem);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 0.5rem;
+  background: rgb(8, 12, 16);
+  color: #f4f1ea;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.7rem;
+}
+
+#mv-controls.mv-controls-hidden {
+  display: none;
+}
+
+#mv-status {
+  padding: 0 0.3rem;
+  font-weight: 700;
+}
+
+#mv-status[data-state="ready"] { color: #4fd1c5; }
+#mv-status[data-state="liquid"] { color: #4fd1c5; }
+#mv-status[data-state="fallback"] { color: #ef7a6d; }
+#mv-status[data-state="idle"] { color: #a0a0a0; }
+
+#mv-controls button {
+  padding: 0.35rem 0.6rem;
+  border: 1px solid rgba(244, 241, 234, 0.35);
+  border-radius: 0.35rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.7rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+#mv-controls button:hover,
+#mv-controls button:focus-visible {
+  border-color: #f4f1ea;
+  background: rgba(244, 241, 234, 0.12);
+}
+
+@media (max-width: 30rem) {
+  #mv-controls {
+    font-size: 0.64rem;
+    padding: 0.4rem 0.5rem;
+  }
+}
