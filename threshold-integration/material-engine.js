@@ -3129,6 +3129,34 @@
           homePixelCache.set(key, capturePixelDataDiag(image));
           if (oldTexture) gl.deleteTexture(oldTexture);
           return true;
+        },
+        // experiment/continuous-liquid-passage addition — the exact same
+        // capability as reuploadHomeTexture above, mirrored for the Games
+        // texture gamesTextureObjects/gamesPixelCache already declared
+        // near GAMES_TEXTURES. Same shape, same guarantees, same
+        // non-involvement in materialPhase/timing/shader code: this only
+        // ever replaces which bitmap uGames samples during Stage B/C and
+        // Arrival (see MATERIAL_SHADER's gamesColor/worldBlend/
+        // arrivalOpticalMix — all already sample gamesTextureObjects via
+        // the existing activeTextureKey path, unchanged). Why this exists:
+        // GAMES_TEXTURES is a single static prebaked PNG, uploaded once at
+        // initialize() time — so the material's own Arrival phase, which
+        // settles toward an undistorted rendering of that same texture,
+        // was always settling onto an old photograph, not onto the real,
+        // live game-localization document about to be revealed. This
+        // makes it possible for the adapter to replace that photograph
+        // with a live, already-settled capture of the real page before
+        // Arrival concludes, so the frame the material shows and the real
+        // page underneath become the same image rather than two similar
+        // ones.
+        reuploadGamesTexture: (image, key) => {
+          if (!gamesTextureObjects.has(key)) return false;
+          const oldTexture = gamesTextureObjects.get(key);
+          const newTexture = uploadTexture(image);
+          gamesTextureObjects.set(key, newTexture);
+          gamesPixelCache.set(key, capturePixelDataDiag(image));
+          if (oldTexture) gl.deleteTexture(oldTexture);
+          return true;
         }
       };
 
