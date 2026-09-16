@@ -148,9 +148,18 @@
     return { desktop, mobile };
   }
 
-  function applyOverrides(homeImages, gamesImages) {
+  async function loadSettledGamesOverride() {
+    const [desktop, mobile] = await Promise.all([
+      loadImage(`${BASE}prebaked/river-games-settled-desktop.svg`),
+      loadImage(`${BASE}prebaked/river-games-settled-iphone.svg`)
+    ]);
+    return { desktop, mobile };
+  }
+
+  function applyOverrides(homeImages, gamesImages, settledGamesImages) {
     window.__threshold_homeOverride = homeImages;
     window.__threshold_gamesOverride = gamesImages;
+    window.__threshold_gamesSettledOverride = settledGamesImages;
     window.__MV_MANIFEST_INLINE__ = {
       desktop: { file: "prebaked/mv-home-desktop.png", cssWidth: HOME_REFERENCE.desktop.cssWidth, cssHeight: HOME_REFERENCE.desktop.cssHeight },
       mobile: { file: "prebaked/mv-home-iphone.png", cssWidth: HOME_REFERENCE.mobile.cssWidth, cssHeight: HOME_REFERENCE.mobile.cssHeight }
@@ -230,8 +239,13 @@
     engineReadyPromise = (async () => {
       ensureStylesheet();
       ensureMarkup();
-      const [home, games] = await Promise.all([loadHomeOverride(), loadGamesOverride(), ensureCaptureLibrary()]);
-      applyOverrides(home, games);
+      const [home, games, settledGames] = await Promise.all([
+        loadHomeOverride(),
+        loadGamesOverride(),
+        loadSettledGamesOverride(),
+        ensureCaptureLibrary()
+      ]);
+      applyOverrides(home, games, settledGames);
       if (!window.__mvCrossing) await loadEngineScript();
       await waitForEngineReady();
       window.__riverInstrumentation.prewarmReadyAt = Math.round(performance.now());
