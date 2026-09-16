@@ -1,9 +1,15 @@
-/* experiment/river-crossing-openai-v2
-   Boundary A refinement: the engine still starts immediately, but the live
-   Home remains the only visible readable surface until the approved WebGL
-   material has already acquired enough liquid deformation that the two
-   renderers can no longer be compared as two crisp copies of the page.
-   No layout/scroll mutation is introduced. */
+/* experiment/river-crossing-openai-v3
+   Click-origin spatial takeover. The real Home stays visually authoritative
+   outside the growing material front; the WebGL canvas is revealed only
+   inside a feathered radial mask whose origin is the visitor's actual click.
+   No full-frame Home-on-Home crossfade remains. */
+
+:root {
+  --river-origin-x: 50vw;
+  --river-origin-y: 50vh;
+  --river-radius: 0px;
+  --river-inner-radius: 0px;
+}
 
 #mv-canvas {
   position: fixed;
@@ -14,50 +20,61 @@
   display: block;
   opacity: 0;
   pointer-events: none;
-  will-change: opacity;
+  will-change: -webkit-mask-image, mask-image, opacity;
 }
 
 #mv-canvas.is-visible { opacity: 0; }
 
-/* river-canvas-enter is added 160ms after activation by the adapter.  The
-   additional 460ms transition delay means the canvas does not begin to
-   become visible until ~620ms into the unchanged 1050ms engaging phase.
-   At that point the WebGL Home is already visibly liquid, so the transfer
-   is between live Home and emerging matter rather than between two crisp
-   Homes with slightly different geometry. */
-html.river-canvas-enter #mv-canvas.is-visible {
+/* Once active, the canvas itself is fully opaque, but only a spatially
+   expanding material region is exposed. Newly exposed pixels are already
+   being deformed by the unchanged water engine, so the visitor never sees
+   a second crisp full-page Home laid over the live DOM. */
+html.river-transitioning #mv-canvas.is-visible {
   opacity: 1;
-  transition: opacity 760ms cubic-bezier(.16,.68,.20,1) 460ms;
+}
+
+html.river-material-front #mv-canvas.is-visible {
+  -webkit-mask-image: radial-gradient(
+    circle at var(--river-origin-x) var(--river-origin-y),
+    #000 0 var(--river-inner-radius),
+    rgba(0,0,0,.96) calc(var(--river-inner-radius) + 18px),
+    rgba(0,0,0,.68) calc(var(--river-inner-radius) + 44px),
+    rgba(0,0,0,.28) calc(var(--river-inner-radius) + 68px),
+    transparent var(--river-radius)
+  );
+  mask-image: radial-gradient(
+    circle at var(--river-origin-x) var(--river-origin-y),
+    #000 0 var(--river-inner-radius),
+    rgba(0,0,0,.96) calc(var(--river-inner-radius) + 18px),
+    rgba(0,0,0,.68) calc(var(--river-inner-radius) + 44px),
+    rgba(0,0,0,.28) calc(var(--river-inner-radius) + 68px),
+    transparent var(--river-radius)
+  );
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
 }
 
 #mv-canvas.mv-canvas--interactive { pointer-events: auto; cursor: pointer; }
 
-/* Keep the real DOM geometrically untouched.  It fades only while the
-   already-deformed canvas rises over it; visibility is retired afterwards
-   by the adapter's existing 1490ms retirement point. */
+/* The live Home never fades against a second readable Home. It simply stays
+   intact outside the material front and is retired only after that front has
+   covered the whole viewport. */
 body.mv-active > header,
 body.mv-active > main,
 body.mv-active > footer {
   visibility: visible !important;
-  opacity: 1;
-}
-
-html.river-canvas-enter body > header,
-html.river-canvas-enter body > main,
-html.river-canvas-enter body > footer {
-  opacity: 0;
-  transition: opacity 760ms cubic-bezier(.16,.68,.20,1) 460ms;
+  opacity: 1 !important;
 }
 
 html.river-dom-retired body > header,
 html.river-dom-retired body > main,
 html.river-dom-retired body > footer {
   visibility: hidden !important;
-  opacity: 0 !important;
 }
 
-/* Neutralize the frozen engine's scroll-lock geometry mutation. Input is
-   already frozen by the adapter with non-layout-changing event guards. */
+/* Neutralize the frozen engine's layout-changing scroll lock. Input is
+   frozen by JS event guards, so viewport geometry remains exactly where the
+   visitor clicked throughout the material-front takeover. */
 html.mv-scroll-locked,
 html.mv-scroll-locked body {
   overflow: visible !important;
@@ -75,11 +92,8 @@ html.mv-scroll-locked body {
 #mv-controls { display: none !important; }
 
 @media (prefers-reduced-motion: reduce) {
-  html.river-canvas-enter #mv-canvas.is-visible,
-  html.river-canvas-enter body > header,
-  html.river-canvas-enter body > main,
-  html.river-canvas-enter body > footer {
-    transition-duration: 260ms;
-    transition-delay: 0ms;
+  html.river-material-front #mv-canvas.is-visible {
+    -webkit-mask-image: none;
+    mask-image: none;
   }
 }
