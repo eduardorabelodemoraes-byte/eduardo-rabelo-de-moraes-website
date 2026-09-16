@@ -1,7 +1,6 @@
-/* experiment/river-crossing-openai-v8
-   The canvas and destination now share one explicit screen-space light
-   anchor. The clean atmosphere and live page materialize behind it without
-   ever distorting readable typography. */
+/* experiment/river-crossing-openai-v9
+   The live spark itself inherits the terminal canvas coordinate. No bridge
+   spark, renderer crossfade or font-dependent second positioning step. */
 
 html.threshold-handoff #prologue {
   opacity: 1 !important;
@@ -27,32 +26,9 @@ html.threshold-handoff body::before {
   animation: river-handoff-cover-release 920ms cubic-bezier(.18,.72,.22,1) 160ms both;
 }
 
-/* The canvas finishes with this exact object already at this exact anchor.
-   On navigation, only renderer ownership changes: the bridge spark yields to
-   the real prologue spark while its position, core and halo stay continuous. */
-html.threshold-handoff body::after {
-  content: "";
-  position: fixed;
-  left: 50%;
-  top: 18.125vh;
-  width: 3px;
-  height: 3px;
-  z-index: 11;
-  pointer-events: none;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 0 20px 6px rgba(255,255,255,.5);
-  opacity: .5;
-  transform: translate(-50%,-50%);
-  animation: river-handoff-bridge-spark-release 1020ms cubic-bezier(.18,.72,.22,1) both;
-}
-
 @media (max-width: 700px) {
   html.threshold-handoff body::before {
     background-image: url("../threshold-integration/prebaked/river-games-settled-iphone.svg");
-  }
-  html.threshold-handoff body::after {
-    top: 10vh;
   }
 }
 
@@ -93,15 +69,24 @@ html.threshold-handoff #prologue > .field > p:first-of-type {
   animation: threshold-thesis-arrive 1180ms cubic-bezier(.16,.72,.20,1) 860ms both;
 }
 
-/* The Crossing has already reduced the light. This is a quiet crossfade of
-   renderer ownership at one size, position and halo — never a second shrink. */
+/* Preserve the original 3px + margin layout slot, but anchor the actual spark
+   to the prologue section. It scrolls with Games (not fixed to the screen).
+   Direct entries keep the untouched V8 layout and animation. */
+html.threshold-handoff #prologue > .field { position: static; }
+html.threshold-handoff #prologue > .field::before {
+  content: "";
+  display: block;
+  height: 3px;
+  margin-bottom: 2.6rem;
+}
 html.threshold-handoff #prologue .spark {
-  position: relative;
+  position: absolute;
+  top: calc(var(--river-spark-y) - 1.5px);
+  left: calc(50% - 1.5px);
+  margin: 0;
   z-index: 12;
-  transform-origin: 50% 50%;
-  animation:
-    river-handoff-spark-takeover 1020ms cubic-bezier(.18,.72,.22,1) both,
-    pulse 3s ease-in-out 1020ms infinite;
+  opacity: .5;
+  animation: pulse 3s ease-in-out 1020ms infinite;
 }
 
 /* Once the thesis has begun to settle, release the remaining visible
@@ -121,27 +106,6 @@ html.threshold-handoff.threshold-arrival-ready #prologue .narr:nth-of-type(6).in
   100% { opacity: 0; }
 }
 
-@keyframes river-handoff-spark-takeover {
-  0% {
-    opacity: 0;
-    transform: scale(1);
-    box-shadow: 0 0 20px 6px rgba(255,255,255,.5);
-  }
-  20% {
-    opacity: 0;
-  }
-  100% {
-    opacity: .5;
-    transform: scale(1);
-    box-shadow: 0 0 20px 6px rgba(255,255,255,.5);
-  }
-}
-
-@keyframes river-handoff-bridge-spark-release {
-  0%, 20% { opacity: .5; }
-  100% { opacity: 0; }
-}
-
 @keyframes threshold-thesis-arrive {
   0% { opacity: 0; filter: blur(5px); transform: translate3d(0,10px,0) scale(.992); }
   55% { opacity: .72; }
@@ -157,10 +121,6 @@ html.threshold-handoff.threshold-arrival-ready #prologue .narr:nth-of-type(6).in
   html.threshold-handoff body::before {
     animation-duration: 220ms;
     animation-delay: 0ms;
-  }
-  html.threshold-handoff body::after {
-    animation-duration: 220ms;
-    opacity: 0;
   }
   html.threshold-handoff #prologue > .field > p:first-of-type,
   html.threshold-handoff.threshold-arrival-ready #prologue .narr.in {

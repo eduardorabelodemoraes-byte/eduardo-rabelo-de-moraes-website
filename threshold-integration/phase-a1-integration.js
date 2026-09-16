@@ -437,7 +437,8 @@
       sessionStorage.setItem(HANDOFF_STORAGE_KEY, JSON.stringify({
         version: HANDOFF_MARKER_VERSION,
         source: HANDOFF_MARKER_SOURCE,
-        stableAt: Date.now()
+        stableAt: Date.now(),
+        sparkY: window.__mvCrossing?.getSparkAnchor?.().y
       }));
       return true;
     } catch { return false; }

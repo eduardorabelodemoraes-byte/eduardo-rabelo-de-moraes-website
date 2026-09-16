@@ -1,0 +1,6 @@
+/* One CSS-pixel anchor, resolved before navigation and carried in the marker.
+   The live spark occupies this anchor itself; there is no intermediary star. */
+:root { --river-spark-y: 18.125vh; }
+@media (max-width: 640px) {
+  :root { --river-spark-y: calc(9vh + 1.5px); }
+}

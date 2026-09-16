@@ -433,6 +433,9 @@
     // 1.0. This is the ONLY new shader uniform this experiment adds.
     uniform float uArrivalOpticalMix;
     uniform float uArrivalVisualMix;
+    uniform vec2 uSparkTarget;
+    uniform vec2 uSparkSource;
+    uniform float uCssPixelRatio;
 
     varying vec2 vUv;
 
@@ -657,31 +660,28 @@
       // CONTRIBUTION to gl_FragColor is what Stage A's hard gate below
       // holds at exactly zero, not the sample itself.
       vec4 gamesColor = texture2D(uGames, frameUv);
-      vec4 arrivalGamesColor = gamesColor;
-      // Uniform branch: the extra texture read is skipped throughout the
-      // approved Crossing and the full-liquid hold. During the final second,
-      // the baked light is replaced by one procedural screen-space light while
-      // the liquid texture becomes the clean Games atmosphere underneath it.
+      vec4 cleanGamesColor = texture2D(uGamesSettled, frameUv);
+      vec3 arrivalLight = max(gamesColor.rgb - cleanGamesColor.rgb, vec3(0.0));
+      vec4 arrivalGamesColor = cleanGamesColor;
+      // Move the isolated emission, not the world beneath it. Both the old
+      // halo and the terminal core use ONE center at every intermediate frame.
       if (uArrivalVisualMix > 0.0) {
-        vec4 settledGamesColor = texture2D(uGamesSettled, frameUv);
-        arrivalGamesColor = mix(gamesColor, settledGamesColor, uArrivalVisualMix);
-
-        bool portrait = uResolution.y > uResolution.x;
-        vec2 lightStart = vec2(0.5, portrait ? 0.82 : 0.81875);
-        vec2 lightTarget = vec2(0.5, portrait ? 0.90 : 0.81875);
+        vec2 lightStart = (uSparkSource - uCoverOffset) / uCoverScale;
+        vec2 lightTarget = uSparkTarget;
         vec2 lightCenter = mix(lightStart, lightTarget, uArrivalVisualMix);
-        vec2 lightDeltaPx = (refractedViewportUv - lightCenter) * uResolution;
+        vec2 relativeUv = refractedViewportUv - lightCenter;
+        vec2 lightSampleUv = uSparkSource + relativeUv * uCoverScale
+          * mix(1.0, 1.6, uArrivalVisualMix);
+        vec3 movingLight = max(texture2D(uGames, lightSampleUv).rgb
+          - texture2D(uGamesSettled, lightSampleUv).rgb, vec3(0.0));
+        vec2 lightDeltaPx = relativeUv * uResolution / uCssPixelRatio;
         float lightDistancePx = length(lightDeltaPx);
-        float haloRadiusPx = portrait ? uResolution.x * 0.052 : uResolution.y * 0.025;
-        float coreRadiusPx = portrait ? uResolution.x * 0.00385 : uResolution.y * 0.001875;
+        float haloRadiusPx = 10.0;
         float halo = exp(-(lightDistancePx * lightDistancePx) /
           (2.0 * haloRadiusPx * haloRadiusPx));
-        float core = exp(-(lightDistancePx * lightDistancePx) /
-          (2.0 * coreRadiusPx * coreRadiusPx));
-        float shimmer = 0.94 + 0.06 * sin(uTime * 2.6) + 0.025 * sin(uTime * 5.7);
-        vec3 terminalLight = vec3(0.84, 0.91, 1.0) * halo * 0.12
-          + vec3(1.0) * core * 0.5;
-        arrivalGamesColor.rgb += terminalLight * uArrivalVisualMix * shimmer;
+        float core = 1.0 - smoothstep(1.0, 1.75, lightDistancePx);
+        vec3 terminalLight = vec3(halo * 0.12 + core * 0.5);
+        arrivalLight = mix(movingLight, terminalLight, uArrivalVisualMix);
       }
 
       // --- Crossing v2 correction (this pass) ---
@@ -815,7 +815,20 @@
       // own richness value. worldBlend=1*1=1 for every pixel — pure
       // Games, matching the held endpoint by construction, unchanged from
       // v1/v2.
-      gl_FragColor = mix(homeColor, arrivalGamesColor, worldBlend);
+      // v9: retain the existing refracted surface after the aperture fills
+      // the screen. Its reflections still come from uHome and the unchanged
+      // water slope; no noise, frozen frame or separate liquid simulation.
+      // This envelope starts only after first sight, and releases together
+      // with the final light convergence. Timing alone could not do this:
+      // the old worldBlend=1 endpoint erased every surface reflection.
+      float surfacePresence = smoothstep(0.20, 0.85, gamesTimeInput)
+        * (1.0 - uArrivalVisualMix);
+      float reflection = 0.07 + 0.16 * localRichness;
+      vec3 liquidSurface = cleanGamesColor.rgb * 0.24
+        + homeColor.rgb * reflection;
+      vec3 worldColor = mix(homeColor.rgb, arrivalGamesColor.rgb, worldBlend);
+      worldColor = mix(worldColor, liquidSurface, surfacePresence);
+      gl_FragColor = vec4(worldColor + arrivalLight * worldBlend, 1.0);
     }
   `;
 
@@ -925,6 +938,8 @@
 
   let activeTextureKey = "desktop";
   let coverMapping = { scaleX: 1, scaleY: 1, offsetX: 0, offsetY: 0 };
+  let sparkAnchorY = 0;
+  let sparkAnchorProbe = null;
   let waterResources = null;
   let simulationAccumulator = 0;
   let pendingImpulse = null;
@@ -2041,6 +2056,14 @@
 
     canvas.style.width = `${box.width}px`;
     canvas.style.height = `${box.height}px`;
+    if (!sparkAnchorProbe) {
+      sparkAnchorProbe = document.createElement('div');
+      sparkAnchorProbe.setAttribute('data-html2canvas-ignore', 'true');
+      sparkAnchorProbe.setAttribute('aria-hidden', 'true');
+      sparkAnchorProbe.style.cssText = 'position:fixed;top:var(--river-spark-y,18.125vh);width:0;height:0;visibility:hidden;pointer-events:none';
+      document.body.appendChild(sparkAnchorProbe);
+    }
+    sparkAnchorY = parseFloat(getComputedStyle(sparkAnchorProbe).top) || box.height * 0.18125;
 
     if (canvas.width !== width || canvas.height !== height) {
       canvas.width = width;
@@ -2562,6 +2585,9 @@
     gl.uniform1i(materialLoc.gamesSettled, 3);
 
     gl.uniform2f(materialLoc.resolution, canvas.width, canvas.height);
+    gl.uniform2f(materialLoc.sparkTarget, 0.5, 1 - sparkAnchorY * dprCapped / canvas.height);
+    gl.uniform2f(materialLoc.sparkSource, 0.5, activeTextureKey === 'mobile' ? 1 - 152 / 844 : 1 - 145 / 800);
+    gl.uniform1f(materialLoc.cssPixelRatio, dprCapped);
     gl.uniform2f(materialLoc.waterTexel, 1 / waterResources.width, 1 / waterResources.height);
     // v2/v3: display amplitude only (physics/impulse-strength amplitude is
     // untouched below in runWaterStep, still DEFAULTS.amplitude). The
@@ -3004,6 +3030,9 @@
         home: gl.getUniformLocation(materialProgram, "uHome"),
         water: gl.getUniformLocation(materialProgram, "uWater"),
         resolution: gl.getUniformLocation(materialProgram, "uResolution"),
+        sparkTarget: gl.getUniformLocation(materialProgram, "uSparkTarget"),
+        sparkSource: gl.getUniformLocation(materialProgram, "uSparkSource"),
+        cssPixelRatio: gl.getUniformLocation(materialProgram, "uCssPixelRatio"),
         waterTexel: gl.getUniformLocation(materialProgram, "uWaterTexel"),
         amplitude: gl.getUniformLocation(materialProgram, "uAmplitude"),
         scale: gl.getUniformLocation(materialProgram, "uScale"),
@@ -3342,6 +3371,7 @@
         // they were in the locked v3.4 checkpoint; these are new, additive
         // surface only.
         getArrivalPhase: () => arrivalPhase, // "none" | "active" | "stable"
+        getSparkAnchor: () => ({ x: getViewportBox().width / 2, y: sparkAnchorY }),
         getArrivalOpticalMix: () => arrivalOpticalMix, // 1 (no-op, matches entire approved Crossing) -> 0 (Arrival-stable)
         getArrivalVisualMix: () => arrivalVisualMix, // 0 (large Crossing light) -> 1 (settled V8-sized spark)
         getArrivalStartedAt: () => arrivalStartedAt, // performance.now() timestamp Arrival's own clock was anchored at (T3), 0 if not yet reached
