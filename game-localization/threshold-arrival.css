@@ -1,9 +1,8 @@
-/* experiment/river-crossing-openai-v2
-   Boundary B refinement. On a validated threshold handoff, the prologue is
-   allowed to exist immediately as the next state of the atmosphere instead
-   of waiting behind the ordinary page-entry gate. The spark is the bridge:
-   it is already present in the Crossing target texture and remains as the
-   first stable object of Games. */
+/* experiment/river-crossing-openai-v5
+   Boundary B refinement. A valid threshold handoff arrives with the same
+   atmosphere and large light already visible in the final Crossing frame.
+   The Games document first reproduces that exact visual anchor, then lets the
+   real V8 spark take over and contract while the thesis emerges. */
 
 html.threshold-handoff #prologue {
   opacity: 1 !important;
@@ -11,9 +10,33 @@ html.threshold-handoff #prologue {
   transition: none !important;
 }
 
+/* First-paint bridge: the same atmosphere-only target used by the Crossing is
+   held behind the real prologue for a fraction of a second. This means the
+   document change no longer begins from a different-looking frame. */
+html.threshold-handoff body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 9;
+  pointer-events: none;
+  background-color: #050510;
+  background-image: url("../threshold-integration/prebaked/river-games-desktop.svg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 1;
+  animation: river-handoff-cover-release 720ms cubic-bezier(.18,.72,.22,1) 180ms both;
+}
+
+@media (max-width: 700px) {
+  html.threshold-handoff body::before {
+    background-image: url("../threshold-integration/prebaked/river-games-iphone.svg");
+  }
+}
+
 /* Keep the arrival focused on one continuous visual fact: atmosphere ->
-   spark -> thesis. Other narrative lines can prepare underneath, but they
-   are not allowed to become visible until the handoff-specific release. */
+   spark -> thesis. Other narrative lines wait until the handoff-specific
+   release. */
 html.threshold-handoff:not(.threshold-arrival-ready) #prologue .narr,
 html.threshold-handoff:not(.threshold-arrival-ready) #prologue .narr.in {
   opacity: 0 !important;
@@ -21,20 +44,29 @@ html.threshold-handoff:not(.threshold-arrival-ready) #prologue .narr.in {
   transform: translate3d(0,14px,0) scale(.99) !important;
 }
 
-/* The thesis is not treated as a second page animation. It grows out of the
-   already-present spark/atmosphere quickly enough to confirm arrival, but
-   slowly enough to read as continuation rather than a pop. */
+/* The thesis starts only after the large light has visibly begun converging,
+   so it reads as being born from the same arrival rather than from a new page. */
 html.threshold-handoff #prologue > .field > p:first-of-type {
   opacity: 0;
   filter: blur(5px);
   transform: translate3d(0,10px,0) scale(.992);
-  animation: threshold-thesis-arrive 1250ms cubic-bezier(.16,.72,.20,1) 220ms both;
+  animation: threshold-thesis-arrive 1250ms cubic-bezier(.16,.72,.20,1) 520ms both;
+}
+
+/* The real 3px V8 spark is the object that survives the handoff. While the
+   cover image fades, its halo begins at the visual size/intensity of the
+   Crossing light and contracts continuously into the canonical V8 pulse. */
+html.threshold-handoff #prologue .spark {
+  position: relative;
+  z-index: 12;
+  transform-origin: 50% 50%;
+  animation:
+    river-handoff-spark-bridge 1280ms cubic-bezier(.16,.76,.20,1) both,
+    pulse 3s ease-in-out 1280ms infinite;
 }
 
 /* Once the thesis has begun to settle, release the remaining visible
-   prologue lines as a measured cascade. This works on mobile too, where the
-   normal .narr CSS transitions are intentionally disabled and WAAPI owns
-   scroll reveals; the handoff animation is independent of that mechanism. */
+   prologue lines as a measured cascade. */
 html.threshold-handoff.threshold-arrival-ready #prologue .narr.in {
   animation: threshold-narr-arrive 820ms cubic-bezier(.18,.70,.22,1) both;
 }
@@ -44,12 +76,40 @@ html.threshold-handoff.threshold-arrival-ready #prologue .narr:nth-of-type(4).in
 html.threshold-handoff.threshold-arrival-ready #prologue .narr:nth-of-type(5).in { animation-delay: 420ms; }
 html.threshold-handoff.threshold-arrival-ready #prologue .narr:nth-of-type(6).in { animation-delay: 560ms; }
 
-/* Navigation belongs to the world after the thesis, not before it. */
 html.threshold-handoff #side-nav {
-  transition: opacity 850ms ease-out 760ms !important;
+  transition: opacity 850ms ease-out 900ms !important;
 }
 html.threshold-handoff #mobile-chapter {
-  transition: opacity 600ms ease-out 900ms !important;
+  transition: opacity 600ms ease-out 980ms !important;
+}
+
+@keyframes river-handoff-cover-release {
+  0% { opacity: 1; }
+  36% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes river-handoff-spark-bridge {
+  0% {
+    opacity: 0;
+    transform: scale(1);
+    box-shadow: 0 0 34px 14px rgba(255,255,255,.66);
+  }
+  18% {
+    opacity: 1;
+    transform: scale(1.08);
+    box-shadow: 0 0 31px 12px rgba(255,255,255,.64);
+  }
+  55% {
+    opacity: .88;
+    transform: scale(1.03);
+    box-shadow: 0 0 25px 9px rgba(255,255,255,.57);
+  }
+  100% {
+    opacity: .5;
+    transform: scale(1);
+    box-shadow: 0 0 20px 6px rgba(255,255,255,.5);
+  }
 }
 
 @keyframes threshold-thesis-arrive {
@@ -63,33 +123,11 @@ html.threshold-handoff #mobile-chapter {
   100% { opacity: 1; filter: blur(0); transform: translate3d(0,0,0) scale(1); }
 }
 
-/* experiment/river-crossing-openai-v4
-   The canvas-side light ends at full brightness, while V8's canonical
-   pulse starts at 50% opacity. That single property difference was enough
-   to read as a frame cut. On a handoff only, hold the real spark at the
-   bright arrival state and let it contract/dim into the canonical V8 pulse
-   before handing control back to the normal infinite animation. */
-html.threshold-handoff #prologue .spark {
-  transform-origin: 50% 50%;
-  animation:
-    river-handoff-spark-converge 1050ms cubic-bezier(.16,.76,.20,1) both,
-    pulse 3s ease-in-out 1050ms infinite;
-}
-
-@keyframes river-handoff-spark-converge {
-  0% {
-    opacity: 1;
-    transform: scale(1.18);
-    box-shadow: 0 0 24px 8px rgba(255,255,255,.58);
-  }
-  100% {
-    opacity: .5;
-    transform: scale(1);
-    box-shadow: 0 0 20px 6px rgba(255,255,255,.5);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
+  html.threshold-handoff body::before {
+    animation-duration: 220ms;
+    animation-delay: 0ms;
+  }
   html.threshold-handoff #prologue > .field > p:first-of-type,
   html.threshold-handoff.threshold-arrival-ready #prologue .narr.in {
     animation-duration: 320ms;
