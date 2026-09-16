@@ -1,7 +1,10 @@
-// experiment/river-crossing-openai-v3
-// Click-origin material front. The approved material-engine.js remains
-// untouched. The live Home stays visually authoritative while a feathered
-// WebGL material front grows from the visitor's actual click/touch point.
+// experiment/river-crossing-openai-v4
+// Click-origin material front fed by a ONE-SHOT snapshot of the visitor's
+// actual viewport. The approved material-engine.js stays untouched. There is
+// no continuous DOM capture and no repeated GPU upload: the real Home remains
+// authoritative until interaction, one current-viewport frame is rasterized,
+// uploaded into the already-warm uHome texture, and only then does the same
+// click-origin material front from v3 begin.
 (() => {
   "use strict";
 
@@ -12,6 +15,9 @@
   const READY_POLL_MS = 40;
   const MATERIAL_FRONT_DURATION_MS = 1650;
   const MATERIAL_FRONT_FEATHER_PX = 82;
+  const SNAPSHOT_MAX_AGE_MS = 1800;
+  const H2C_SRC = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+  const H2C_INTEGRITY = "sha512-BNaRQnYJYiPSqHHDb58B0yaPfCu+Wgds8Gp/gU33kqBtgNS4tSPHuGibyoeqMV/TJlSKda6FXzoEyYGjTe+vXA==";
 
   const HANDOFF_STORAGE_KEY = "phase1dThresholdHandoff";
   const HANDOFF_MARKER_VERSION = 1;
@@ -25,13 +31,16 @@
   let bootstrapping = false;
   let handedOff = false;
   let engineReadyPromise = null;
+  let captureLibraryPromise = null;
+  let snapshotPromise = null;
+  let latestSnapshot = null;
   let releaseInput = null;
   let frontFrame = 0;
 
   const root = document.documentElement;
 
   function log(label, detail) {
-    console.info(`[river-v3] ${label}`, detail === undefined ? "" : detail);
+    console.info(`[river-v4] ${label}`, detail === undefined ? "" : detail);
   }
 
   window.__riverInstrumentation = {
@@ -39,6 +48,11 @@
     clickOrigin: null,
     prewarmStartedAt: null,
     prewarmReadyAt: null,
+    snapshotStartedAt: null,
+    snapshotReadyAt: null,
+    snapshotSource: null,
+    snapshotDurationMs: null,
+    snapshotUploadedAt: null,
     activatedAt: null,
     frontStartedAt: null,
     frontCompletedAt: null,
@@ -82,11 +96,13 @@
     const canvas = document.createElement("canvas");
     canvas.id = "mv-canvas";
     canvas.setAttribute("aria-hidden", "true");
+    canvas.setAttribute("data-html2canvas-ignore", "true");
     document.body.appendChild(canvas);
 
     const controls = document.createElement("div");
     controls.id = "mv-controls";
     controls.hidden = true;
+    controls.setAttribute("data-html2canvas-ignore", "true");
     controls.style.setProperty("display", "none", "important");
 
     for (const id of ["mv-activate", "mv-reset"]) {
@@ -152,6 +168,33 @@
     });
   }
 
+  function ensureCaptureLibrary() {
+    if (typeof window.html2canvas === "function") return Promise.resolve(window.html2canvas);
+    if (captureLibraryPromise) return captureLibraryPromise;
+    captureLibraryPromise = new Promise((resolve, reject) => {
+      const existing = document.getElementById("river-html2canvas");
+      if (existing) {
+        existing.addEventListener("load", () => resolve(window.html2canvas), { once: true });
+        existing.addEventListener("error", () => reject(new Error("html2canvas failed to load")), { once: true });
+        return;
+      }
+      const script = document.createElement("script");
+      script.id = "river-html2canvas";
+      script.src = H2C_SRC;
+      script.integrity = H2C_INTEGRITY;
+      script.crossOrigin = "anonymous";
+      script.referrerPolicy = "no-referrer";
+      script.setAttribute("data-html2canvas-ignore", "true");
+      script.onload = () => {
+        if (typeof window.html2canvas === "function") resolve(window.html2canvas);
+        else reject(new Error("html2canvas loaded without API"));
+      };
+      script.onerror = () => reject(new Error("html2canvas failed to load"));
+      document.head.appendChild(script);
+    });
+    return captureLibraryPromise;
+  }
+
   function waitForEngineReady() {
     return new Promise((resolve, reject) => {
       const started = performance.now();
@@ -187,7 +230,7 @@
     engineReadyPromise = (async () => {
       ensureStylesheet();
       ensureMarkup();
-      const [home, games] = await Promise.all([loadHomeOverride(), loadGamesOverride()]);
+      const [home, games] = await Promise.all([loadHomeOverride(), loadGamesOverride(), ensureCaptureLibrary()]);
       applyOverrides(home, games);
       if (!window.__mvCrossing) await loadEngineScript();
       await waitForEngineReady();
@@ -196,15 +239,123 @@
     return engineReadyPromise;
   }
 
+  function viewportMeta() {
+    return {
+      width: Math.max(1, window.innerWidth),
+      height: Math.max(1, window.innerHeight),
+      scrollX: window.scrollX,
+      scrollY: window.scrollY,
+      dpr: Math.min(Math.max(window.devicePixelRatio || 1, 1), 2),
+      at: performance.now()
+    };
+  }
+
+  function snapshotMatches(meta) {
+    if (!latestSnapshot || !meta) return false;
+    const now = performance.now();
+    return (
+      now - meta.at <= SNAPSHOT_MAX_AGE_MS &&
+      Math.abs(meta.width - innerWidth) < 1 &&
+      Math.abs(meta.height - innerHeight) < 1 &&
+      Math.abs(meta.scrollX - scrollX) < 1 &&
+      Math.abs(meta.scrollY - scrollY) < 1
+    );
+  }
+
+  async function captureViewport(source) {
+    const h2c = await ensureCaptureLibrary();
+    const meta = viewportMeta();
+    const started = performance.now();
+    window.__riverInstrumentation.snapshotStartedAt = Math.round(started);
+    const canvas = await h2c(document.body, {
+      x: meta.scrollX,
+      y: meta.scrollY,
+      width: meta.width,
+      height: meta.height,
+      windowWidth: meta.width,
+      windowHeight: meta.height,
+      scrollX: meta.scrollX,
+      scrollY: meta.scrollY,
+      scale: meta.dpr,
+      backgroundColor: getComputedStyle(document.body).backgroundColor || "#f7f3ea",
+      useCORS: true,
+      allowTaint: false,
+      logging: false,
+      removeContainer: true,
+      ignoreElements: (el) => el.id === "mv-canvas" || el.id === "mv-controls"
+    });
+    const duration = performance.now() - started;
+    latestSnapshot = { canvas, meta };
+    window.__riverInstrumentation.snapshotReadyAt = Math.round(performance.now());
+    window.__riverInstrumentation.snapshotDurationMs = Math.round(duration);
+    window.__riverInstrumentation.snapshotSource = source;
+    log("viewport snapshot ready", { source, durationMs: Math.round(duration), meta });
+    return latestSnapshot;
+  }
+
+  function primeSnapshot() {
+    if (snapshotMatches(latestSnapshot?.meta)) return Promise.resolve(latestSnapshot);
+    if (snapshotPromise) return snapshotPromise;
+    snapshotPromise = Promise.all([ensureEngineReady(), ensureCaptureLibrary()])
+      .then(() => captureViewport("prime"))
+      .finally(() => { snapshotPromise = null; });
+    return snapshotPromise;
+  }
+
+  async function getFreshSnapshot() {
+    if (snapshotMatches(latestSnapshot?.meta)) return latestSnapshot;
+    if (snapshotPromise) {
+      try { await snapshotPromise; } catch (_) {}
+      if (snapshotMatches(latestSnapshot?.meta)) return latestSnapshot;
+    }
+    return captureViewport("click");
+  }
+
+  function uploadSnapshotToHomeTexture(snapshot) {
+    const canvas = document.getElementById("mv-canvas");
+    if (!canvas) throw new Error("material canvas missing");
+    const gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
+    if (!gl) throw new Error("material WebGL context unavailable");
+
+    const previousActive = gl.getParameter(gl.ACTIVE_TEXTURE);
+    gl.activeTexture(gl.TEXTURE0);
+    const homeTexture = gl.getParameter(gl.TEXTURE_BINDING_2D);
+    if (!homeTexture) {
+      gl.activeTexture(previousActive);
+      throw new Error("active Home texture unavailable");
+    }
+
+    gl.bindTexture(gl.TEXTURE_2D, homeTexture);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, snapshot.canvas);
+    gl.activeTexture(previousActive);
+
+    const key = snapshot.meta.width <= 700 ? "mobile" : "desktop";
+    const entry = window.__MV_MANIFEST_INLINE__?.[key];
+    if (entry) {
+      entry.cssWidth = snapshot.meta.width;
+      entry.cssHeight = snapshot.meta.height;
+    }
+    // material-engine.js keeps the manifest object by reference; its existing
+    // resize path recomputes coverMapping from the updated current viewport.
+    window.dispatchEvent(new Event("resize"));
+    window.__riverInstrumentation.snapshotUploadedAt = Math.round(performance.now());
+    log("viewport snapshot uploaded", { key, width: snapshot.canvas.width, height: snapshot.canvas.height });
+  }
+
   function armPrewarm() {
     const link = document.querySelector(ENTRY_SELECTOR);
     const target = document.querySelector(PREWARM_TRIGGER_SELECTOR);
     const warm = () => ensureEngineReady().catch((e) => log("prewarm failed", e.message));
+    const prime = () => {
+      warm();
+      primeSnapshot().catch((e) => log("snapshot prime failed", e.message));
+    };
 
     if (link) {
-      link.addEventListener("pointerenter", warm, { once: true, passive: true });
-      link.addEventListener("focus", warm, { once: true, passive: true });
-      link.addEventListener("touchstart", warm, { once: true, passive: true });
+      link.addEventListener("pointerenter", prime, { once: true, passive: true });
+      link.addEventListener("focus", prime, { once: true, passive: true });
+      link.addEventListener("touchstart", prime, { once: true, passive: true });
     }
     if (target && "IntersectionObserver" in window) {
       const observer = new IntersectionObserver((entries) => {
@@ -300,8 +451,6 @@
   }
 
   function easeMaterialFront(t) {
-    // Smoothstep: the front is born gently at the touch point, gains momentum
-    // through the middle, then settles as it reaches the farthest corner.
     return t * t * (3 - 2 * t);
   }
 
@@ -347,9 +496,6 @@
   function triggerOriginImpulse(origin) {
     const canvas = document.getElementById("mv-canvas");
     if (!canvas) return;
-    // The preserved engine already maps canvas clicks into its recovered
-    // Gaussian water impulse. Re-dispatching the visitor's exact coordinates
-    // makes the physical disturbance and the visible reveal share one origin.
     canvas.dispatchEvent(new MouseEvent("click", {
       bubbles: true,
       cancelable: true,
@@ -364,11 +510,16 @@
     freezeInput();
     try {
       await ensureEngineReady();
+      const snapshot = await getFreshSnapshot();
+      uploadSnapshotToHomeTexture(snapshot);
+
       handedOff = true;
       const activatedAt = performance.now();
       window.__riverInstrumentation.activatedAt = activatedAt;
       window.__riverInstrumentation.clickOrigin = { x: Math.round(origin.x), y: Math.round(origin.y) };
 
+      // The first visible material frame now samples the visitor's own current
+      // viewport. There is no canonical Home to reveal underneath the front.
       startMaterialFront(activatedAt, origin);
       document.getElementById("mv-activate").click();
       requestAnimationFrame(() => triggerOriginImpulse(origin));
@@ -396,6 +547,8 @@
     if (!event.persisted) return;
     bootstrapping = false;
     handedOff = false;
+    latestSnapshot = null;
+    snapshotPromise = null;
     cancelAnimationFrame(frontFrame);
     releaseInput?.();
     root.classList.remove("river-transitioning", "river-material-front", "river-dom-retired");
