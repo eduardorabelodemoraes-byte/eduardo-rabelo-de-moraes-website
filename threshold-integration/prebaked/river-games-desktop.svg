@@ -15,9 +15,17 @@
       <stop offset=".44" stop-color="#000" stop-opacity="0"/>
       <stop offset="1" stop-color="#020208" stop-opacity=".72"/>
     </radialGradient>
+    <radialGradient id="spark" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="1"/>
+      <stop offset=".10" stop-color="#ffffff" stop-opacity=".92"/>
+      <stop offset=".34" stop-color="#d6e8ff" stop-opacity=".34"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
   </defs>
   <rect width="1366" height="800" fill="#050510"/>
   <rect width="1366" height="800" fill="url(#cyan)"/>
   <rect width="1366" height="800" fill="url(#violet)"/>
   <rect width="1366" height="800" fill="url(#vignette)"/>
+  <circle cx="683" cy="145" r="30" fill="url(#spark)"/>
+  <circle cx="683" cy="145" r="1.7" fill="#fff"/>
 </svg>

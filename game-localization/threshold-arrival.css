@@ -1,0 +1,79 @@
+/* experiment/river-crossing-openai-v2
+   Boundary B refinement. On a validated threshold handoff, the prologue is
+   allowed to exist immediately as the next state of the atmosphere instead
+   of waiting behind the ordinary page-entry gate. The spark is the bridge:
+   it is already present in the Crossing target texture and remains as the
+   first stable object of Games. */
+
+html.threshold-handoff #prologue {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  transition: none !important;
+}
+
+/* Keep the arrival focused on one continuous visual fact: atmosphere ->
+   spark -> thesis. Other narrative lines can prepare underneath, but they
+   are not allowed to become visible until the handoff-specific release. */
+html.threshold-handoff:not(.threshold-arrival-ready) #prologue .narr,
+html.threshold-handoff:not(.threshold-arrival-ready) #prologue .narr.in {
+  opacity: 0 !important;
+  filter: blur(5px) !important;
+  transform: translate3d(0,14px,0) scale(.99) !important;
+}
+
+/* The thesis is not treated as a second page animation. It grows out of the
+   already-present spark/atmosphere quickly enough to confirm arrival, but
+   slowly enough to read as continuation rather than a pop. */
+html.threshold-handoff #prologue > .field > p:first-of-type {
+  opacity: 0;
+  filter: blur(5px);
+  transform: translate3d(0,10px,0) scale(.992);
+  animation: threshold-thesis-arrive 1250ms cubic-bezier(.16,.72,.20,1) 220ms both;
+}
+
+/* Once the thesis has begun to settle, release the remaining visible
+   prologue lines as a measured cascade. This works on mobile too, where the
+   normal .narr CSS transitions are intentionally disabled and WAAPI owns
+   scroll reveals; the handoff animation is independent of that mechanism. */
+html.threshold-handoff.threshold-arrival-ready #prologue .narr.in {
+  animation: threshold-narr-arrive 820ms cubic-bezier(.18,.70,.22,1) both;
+}
+html.threshold-handoff.threshold-arrival-ready #prologue .narr:nth-of-type(2).in { animation-delay: 0ms; }
+html.threshold-handoff.threshold-arrival-ready #prologue .narr:nth-of-type(3).in { animation-delay: 140ms; }
+html.threshold-handoff.threshold-arrival-ready #prologue .narr:nth-of-type(4).in { animation-delay: 280ms; }
+html.threshold-handoff.threshold-arrival-ready #prologue .narr:nth-of-type(5).in { animation-delay: 420ms; }
+html.threshold-handoff.threshold-arrival-ready #prologue .narr:nth-of-type(6).in { animation-delay: 560ms; }
+
+/* Navigation belongs to the world after the thesis, not before it. */
+html.threshold-handoff #side-nav {
+  transition: opacity 850ms ease-out 760ms !important;
+}
+html.threshold-handoff #mobile-chapter {
+  transition: opacity 600ms ease-out 900ms !important;
+}
+
+@keyframes threshold-thesis-arrive {
+  0% { opacity: 0; filter: blur(5px); transform: translate3d(0,10px,0) scale(.992); }
+  55% { opacity: .72; }
+  100% { opacity: 1; filter: blur(0); transform: translate3d(0,0,0) scale(1); }
+}
+
+@keyframes threshold-narr-arrive {
+  0% { opacity: 0; filter: blur(5px); transform: translate3d(0,14px,0) scale(.99); }
+  100% { opacity: 1; filter: blur(0); transform: translate3d(0,0,0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.threshold-handoff #prologue > .field > p:first-of-type,
+  html.threshold-handoff.threshold-arrival-ready #prologue .narr.in {
+    animation-duration: 320ms;
+    animation-delay: 0ms;
+    filter: none;
+    transform: none;
+  }
+  html.threshold-handoff #side-nav,
+  html.threshold-handoff #mobile-chapter {
+    transition-delay: 0ms !important;
+    transition-duration: 300ms !important;
+  }
+}

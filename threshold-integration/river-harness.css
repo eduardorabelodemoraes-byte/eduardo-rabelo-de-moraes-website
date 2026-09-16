@@ -1,8 +1,9 @@
-/* experiment/river-crossing-openai
-   The preserved material-engine owns the liquid/Crossing render. This CSS
-   deliberately neutralizes only its click-time DOM hiding / scroll-layout
-   mutation so the live Home can yield optically instead of being replaced
-   in a single frame. */
+/* experiment/river-crossing-openai-v2
+   Boundary A refinement: the engine still starts immediately, but the live
+   Home remains the only visible readable surface until the approved WebGL
+   material has already acquired enough liquid deformation that the two
+   renderers can no longer be compared as two crisp copies of the page.
+   No layout/scroll mutation is introduced. */
 
 #mv-canvas {
   position: fixed;
@@ -17,20 +18,46 @@
 }
 
 #mv-canvas.is-visible { opacity: 0; }
+
+/* river-canvas-enter is added 160ms after activation by the adapter.  The
+   additional 460ms transition delay means the canvas does not begin to
+   become visible until ~620ms into the unchanged 1050ms engaging phase.
+   At that point the WebGL Home is already visibly liquid, so the transfer
+   is between live Home and emerging matter rather than between two crisp
+   Homes with slightly different geometry. */
 html.river-canvas-enter #mv-canvas.is-visible {
   opacity: 1;
-  transition: opacity 1250ms cubic-bezier(.16,.68,.20,1);
+  transition: opacity 760ms cubic-bezier(.16,.68,.20,1) 460ms;
 }
 
 #mv-canvas.mv-canvas--interactive { pointer-events: auto; cursor: pointer; }
 
+/* Keep the real DOM geometrically untouched.  It fades only while the
+   already-deformed canvas rises over it; visibility is retired afterwards
+   by the adapter's existing 1490ms retirement point. */
 body.mv-active > header,
 body.mv-active > main,
-body.mv-active > footer { visibility: visible !important; }
+body.mv-active > footer {
+  visibility: visible !important;
+  opacity: 1;
+}
+
+html.river-canvas-enter body > header,
+html.river-canvas-enter body > main,
+html.river-canvas-enter body > footer {
+  opacity: 0;
+  transition: opacity 760ms cubic-bezier(.16,.68,.20,1) 460ms;
+}
+
 html.river-dom-retired body > header,
 html.river-dom-retired body > main,
-html.river-dom-retired body > footer { visibility: hidden !important; }
+html.river-dom-retired body > footer {
+  visibility: hidden !important;
+  opacity: 0 !important;
+}
 
+/* Neutralize the frozen engine's scroll-lock geometry mutation. Input is
+   already frozen by the adapter with non-layout-changing event guards. */
 html.mv-scroll-locked,
 html.mv-scroll-locked body {
   overflow: visible !important;
@@ -48,5 +75,11 @@ html.mv-scroll-locked body {
 #mv-controls { display: none !important; }
 
 @media (prefers-reduced-motion: reduce) {
-  html.river-canvas-enter #mv-canvas.is-visible { transition-duration: 260ms; }
+  html.river-canvas-enter #mv-canvas.is-visible,
+  html.river-canvas-enter body > header,
+  html.river-canvas-enter body > main,
+  html.river-canvas-enter body > footer {
+    transition-duration: 260ms;
+    transition-delay: 0ms;
+  }
 }
