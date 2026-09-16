@@ -274,15 +274,12 @@
   // actually INCREASES over a 4.2s post-T3 observation window on both
   // desktop and iphone — see NOTE.txt Part A). There is nothing physical
   // to time this against; the duration is therefore an external, artistic
-  // choice. v6 retains the approved 2200ms settle itself and adds a 1000ms
-  // living-liquid hold identified from the real-device v5 recording.
-  // v6 keeps the full-screen liquid endpoint alive long enough to be read,
-  // then settles it with a symmetric ease instead of collapsing most of the
-  // refraction at the start of the old cubic ease-out. The total grows by one
-  // second, but the former atmosphere-only wait is now occupied by living
-  // material and by the light's pre-navigation convergence.
-  const ARRIVAL_LIQUID_HOLD_DURATION = 1000;
-  const ARRIVAL_SETTLE_DURATION = 2200;
+  // choice. v8 keeps the approved total duration but gives most of it to the
+  // fully opened, living portal. The shorter final interval is now a genuine
+  // state change: liquid becomes atmosphere while one screen-space light
+  // travels to the exact destination anchor before navigation.
+  const ARRIVAL_LIQUID_HOLD_DURATION = 2200;
+  const ARRIVAL_SETTLE_DURATION = 1000;
   const ARRIVAL_DURATION = ARRIVAL_LIQUID_HOLD_DURATION + ARRIVAL_SETTLE_DURATION;
 
   // --- Crossing v3 addition, retained unchanged in v3.1 ---
@@ -414,12 +411,6 @@
     uniform sampler2D uGames;
     uniform sampler2D uGamesSettled;
     uniform float uWorldMix;
-    // v7 terminal registration. The approved Crossing continues to use the
-    // original uCover* mapping. Only the post-T3 settled target uses this
-    // visual-viewport mapping, matching the fixed CSS handoff surface that
-    // becomes the first frame of the Games document on mobile Safari.
-    uniform vec2 uSettledCoverScale;
-    uniform vec2 uSettledCoverOffset;
     // Crossing v3 addition. The Stage A/Stage B+C boundary along the
     // uWorldMix ramp (STAGE_A_FORMATION_END on the JS side, same numeric
     // value, passed through as a uniform so the two can never drift
@@ -668,18 +659,29 @@
       vec4 gamesColor = texture2D(uGames, frameUv);
       vec4 arrivalGamesColor = gamesColor;
       // Uniform branch: the extra texture read is skipped throughout the
-      // approved Crossing and the full-liquid hold. It becomes active only
-      // when the post-T3 light actually begins to converge.
+      // approved Crossing and the full-liquid hold. During the final second,
+      // the baked light is replaced by one procedural screen-space light while
+      // the liquid texture becomes the clean Games atmosphere underneath it.
       if (uArrivalVisualMix > 0.0) {
-        // Move the same world into the destination document's actual crop as
-        // its light contracts. Because both source textures are sampled at
-        // the interpolated coordinate, the light travels as one object rather
-        // than crossfading between two vertically separated points.
-        vec2 settledFrameUv = uSettledCoverOffset + refractedViewportUv * uSettledCoverScale;
-        vec2 arrivalFrameUv = mix(frameUv, settledFrameUv, uArrivalVisualMix);
-        vec4 movingGamesColor = texture2D(uGames, arrivalFrameUv);
-        vec4 settledGamesColor = texture2D(uGamesSettled, arrivalFrameUv);
-        arrivalGamesColor = mix(movingGamesColor, settledGamesColor, uArrivalVisualMix);
+        vec4 settledGamesColor = texture2D(uGamesSettled, frameUv);
+        arrivalGamesColor = mix(gamesColor, settledGamesColor, uArrivalVisualMix);
+
+        bool portrait = uResolution.y > uResolution.x;
+        vec2 lightStart = vec2(0.5, portrait ? 0.82 : 0.81875);
+        vec2 lightTarget = vec2(0.5, portrait ? 0.90 : 0.81875);
+        vec2 lightCenter = mix(lightStart, lightTarget, uArrivalVisualMix);
+        vec2 lightDeltaPx = (refractedViewportUv - lightCenter) * uResolution;
+        float lightDistancePx = length(lightDeltaPx);
+        float haloRadiusPx = portrait ? uResolution.x * 0.052 : uResolution.y * 0.025;
+        float coreRadiusPx = portrait ? uResolution.x * 0.00385 : uResolution.y * 0.001875;
+        float halo = exp(-(lightDistancePx * lightDistancePx) /
+          (2.0 * haloRadiusPx * haloRadiusPx));
+        float core = exp(-(lightDistancePx * lightDistancePx) /
+          (2.0 * coreRadiusPx * coreRadiusPx));
+        float shimmer = 0.94 + 0.06 * sin(uTime * 2.6) + 0.025 * sin(uTime * 5.7);
+        vec3 terminalLight = vec3(0.84, 0.91, 1.0) * halo * 0.12
+          + vec3(1.0) * core * 0.5;
+        arrivalGamesColor.rgb += terminalLight * uArrivalVisualMix * shimmer;
       }
 
       // --- Crossing v2 correction (this pass) ---
@@ -923,7 +925,6 @@
 
   let activeTextureKey = "desktop";
   let coverMapping = { scaleX: 1, scaleY: 1, offsetX: 0, offsetY: 0 };
-  let settledCoverMapping = { scaleX: 1, scaleY: 1, offsetX: 0, offsetY: 0 };
   let waterResources = null;
   let simulationAccumulator = 0;
   let pendingImpulse = null;
@@ -1902,29 +1903,6 @@
     };
   }
 
-  function updateSettledCoverMapping() {
-    const key = activeTextureKey;
-    const entry = manifestEntries[key];
-    const box = getViewportBox();
-    const viewportAspect = box.width / Math.max(box.height, 1);
-    const referenceAspect = entry.cssWidth / entry.cssHeight;
-    let scaleX = 1;
-    let scaleY = 1;
-
-    if (viewportAspect > referenceAspect) {
-      scaleY = referenceAspect / viewportAspect;
-    } else {
-      scaleX = viewportAspect / referenceAspect;
-    }
-
-    settledCoverMapping = {
-      scaleX,
-      scaleY,
-      offsetX: (1 - scaleX) * 0.5,
-      offsetY: (1 - scaleY) * 0.5
-    };
-  }
-
   function compileShader(type, source) {
     const shader = gl.createShader(type);
     gl.shaderSource(shader, source);
@@ -2074,7 +2052,6 @@
       activeTextureKey = nextKey;
     }
     updateCoverMapping();
-    updateSettledCoverMapping();
     if (gl) createWaterResources();
     // Crossing v3.1 addition: waterResources' dimensions are only ever
     // (re)established here (createWaterResources()'s sole call site), so
@@ -2441,11 +2418,10 @@
       const eased = rawProgress * rawProgress * (3 - 2 * rawProgress);
       arrivalOpticalMix = 1 - eased;
 
-      // Let the light remain broad during the first part of the settle, then
-      // converge it inside the Crossing. The final canvas frame therefore
-      // already carries the quiet, V8-sized spark before navigation begins.
-      const lightRaw = Math.min(Math.max((rawProgress - 0.15) / 0.85, 0), 1);
-      arrivalVisualMix = lightRaw * lightRaw * (3 - 2 * lightRaw);
+      // Atmosphere, refraction and the single terminal light now converge on
+      // the same clock, with zero velocity at both ends. There is no cyan-only
+      // waiting plateau after the portal has disappeared.
+      arrivalVisualMix = eased;
       if (elapsed >= ARRIVAL_DURATION) {
         arrivalOpticalMix = 0;
         arrivalVisualMix = 1;
@@ -2600,8 +2576,6 @@
     gl.uniform1f(materialLoc.liquidMix, liquidMix);
     gl.uniform2f(materialLoc.coverScale, coverMapping.scaleX, coverMapping.scaleY);
     gl.uniform2f(materialLoc.coverOffset, coverMapping.offsetX, coverMapping.offsetY);
-    gl.uniform2f(materialLoc.settledCoverScale, settledCoverMapping.scaleX, settledCoverMapping.scaleY);
-    gl.uniform2f(materialLoc.settledCoverOffset, settledCoverMapping.offsetX, settledCoverMapping.offsetY);
     // Crossing experiment addition (v1/v2): the only other new uniform
     // besides uGames above, until v3's addition immediately below.
     // Everything else in draw() above and below this line is unchanged
@@ -3038,8 +3012,6 @@
         liquidMix: gl.getUniformLocation(materialProgram, "uLiquidMix"),
         coverScale: gl.getUniformLocation(materialProgram, "uCoverScale"),
         coverOffset: gl.getUniformLocation(materialProgram, "uCoverOffset"),
-        settledCoverScale: gl.getUniformLocation(materialProgram, "uSettledCoverScale"),
-        settledCoverOffset: gl.getUniformLocation(materialProgram, "uSettledCoverOffset"),
         // Crossing experiment additions (v1/v2).
         games: gl.getUniformLocation(materialProgram, "uGames"),
         gamesSettled: gl.getUniformLocation(materialProgram, "uGamesSettled"),
