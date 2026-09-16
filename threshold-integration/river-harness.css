@@ -1,0 +1,52 @@
+/* experiment/river-crossing-openai
+   The preserved material-engine owns the liquid/Crossing render. This CSS
+   deliberately neutralizes only its click-time DOM hiding / scroll-layout
+   mutation so the live Home can yield optically instead of being replaced
+   in a single frame. */
+
+#mv-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 999998;
+  display: block;
+  opacity: 0;
+  pointer-events: none;
+  will-change: opacity;
+}
+
+#mv-canvas.is-visible { opacity: 0; }
+html.river-canvas-enter #mv-canvas.is-visible {
+  opacity: 1;
+  transition: opacity 1250ms cubic-bezier(.16,.68,.20,1);
+}
+
+#mv-canvas.mv-canvas--interactive { pointer-events: auto; cursor: pointer; }
+
+body.mv-active > header,
+body.mv-active > main,
+body.mv-active > footer { visibility: visible !important; }
+html.river-dom-retired body > header,
+html.river-dom-retired body > main,
+html.river-dom-retired body > footer { visibility: hidden !important; }
+
+html.mv-scroll-locked,
+html.mv-scroll-locked body {
+  overflow: visible !important;
+  height: auto !important;
+  overscroll-behavior: auto !important;
+}
+html.mv-scroll-locked body {
+  position: static !important;
+  left: auto !important;
+  right: auto !important;
+  top: auto !important;
+  width: auto !important;
+}
+
+#mv-controls { display: none !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  html.river-canvas-enter #mv-canvas.is-visible { transition-duration: 260ms; }
+}
