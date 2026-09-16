@@ -1,8 +1,7 @@
-// experiment/river-crossing-openai
-// Adapter around the preserved approved material-engine.js. The material
-// simulation / Crossing shader stays untouched; this adapter changes only
-// how the live Home yields to the canvas and which Games reference texture
-// the Crossing reveals.
+// experiment/river-crossing-openai-v3
+// Click-origin material front. The approved material-engine.js remains
+// untouched. The live Home stays visually authoritative while a feathered
+// WebGL material front grows from the visitor's actual click/touch point.
 (() => {
   "use strict";
 
@@ -11,8 +10,8 @@
   const BASE = "threshold-integration/";
   const READY_TIMEOUT_MS = 8000;
   const READY_POLL_MS = 40;
-  const CANVAS_REVEAL_DELAY_MS = 160;
-  const DOM_RETIRE_DELAY_MS = 1490;
+  const MATERIAL_FRONT_DURATION_MS = 1650;
+  const MATERIAL_FRONT_FEATHER_PX = 82;
 
   const HANDOFF_STORAGE_KEY = "phase1dThresholdHandoff";
   const HANDOFF_MARKER_VERSION = 1;
@@ -27,19 +26,22 @@
   let handedOff = false;
   let engineReadyPromise = null;
   let releaseInput = null;
+  let frontFrame = 0;
 
   const root = document.documentElement;
 
   function log(label, detail) {
-    console.info(`[river] ${label}`, detail === undefined ? "" : detail);
+    console.info(`[river-v3] ${label}`, detail === undefined ? "" : detail);
   }
 
   window.__riverInstrumentation = {
     clickedAt: null,
+    clickOrigin: null,
     prewarmStartedAt: null,
     prewarmReadyAt: null,
     activatedAt: null,
-    canvasRevealAt: null,
+    frontStartedAt: null,
+    frontCompletedAt: null,
     domRetiredAt: null,
     arrivalStableAt: null,
     navigateInitiatedAt: null,
@@ -56,6 +58,14 @@
     try {
       return new URL(link.href, location.href).origin === location.origin;
     } catch { return false; }
+  }
+
+  function originFromEvent(event, link) {
+    if (Number.isFinite(event.clientX) && Number.isFinite(event.clientY) && (event.clientX || event.clientY)) {
+      return { x: event.clientX, y: event.clientY };
+    }
+    const r = link.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
   }
 
   function ensureStylesheet() {
@@ -204,9 +214,10 @@
         }
       }, { rootMargin: "120% 0px", threshold: 0 });
       observer.observe(target);
+    } else if ("requestIdleCallback" in window) {
+      requestIdleCallback(warm, { timeout: 1800 });
     } else {
-      if ("requestIdleCallback" in window) requestIdleCallback(warm, { timeout: 1800 });
-      else setTimeout(warm, 900);
+      setTimeout(warm, 900);
     }
   }
 
@@ -288,19 +299,66 @@
     requestAnimationFrame(tick);
   }
 
-  function startVisualTransfer(activatedAt) {
-    root.classList.add("river-transitioning");
-    setTimeout(() => {
-      root.classList.add("river-canvas-enter");
-      window.__riverInstrumentation.canvasRevealAt = Math.round(performance.now() - activatedAt);
-    }, CANVAS_REVEAL_DELAY_MS);
-    setTimeout(() => {
-      root.classList.add("river-dom-retired");
-      window.__riverInstrumentation.domRetiredAt = Math.round(performance.now() - activatedAt);
-    }, DOM_RETIRE_DELAY_MS);
+  function easeMaterialFront(t) {
+    // Smoothstep: the front is born gently at the touch point, gains momentum
+    // through the middle, then settles as it reaches the farthest corner.
+    return t * t * (3 - 2 * t);
   }
 
-  async function bootstrap(link) {
+  function setFrontRadius(radius) {
+    const inner = Math.max(0, radius - MATERIAL_FRONT_FEATHER_PX);
+    root.style.setProperty("--river-radius", `${radius.toFixed(1)}px`);
+    root.style.setProperty("--river-inner-radius", `${inner.toFixed(1)}px`);
+  }
+
+  function startMaterialFront(activatedAt, origin) {
+    cancelAnimationFrame(frontFrame);
+    const x = Math.min(Math.max(origin.x, 0), innerWidth);
+    const y = Math.min(Math.max(origin.y, 0), innerHeight);
+    const farX = Math.max(x, innerWidth - x);
+    const farY = Math.max(y, innerHeight - y);
+    const maxRadius = Math.hypot(farX, farY) + MATERIAL_FRONT_FEATHER_PX + 24;
+
+    root.style.setProperty("--river-origin-x", `${x.toFixed(1)}px`);
+    root.style.setProperty("--river-origin-y", `${y.toFixed(1)}px`);
+    setFrontRadius(0);
+    root.classList.add("river-transitioning", "river-material-front");
+    window.__riverInstrumentation.frontStartedAt = Math.round(performance.now() - activatedAt);
+
+    const start = performance.now();
+    function frame(now) {
+      const raw = Math.min(1, Math.max(0, (now - start) / MATERIAL_FRONT_DURATION_MS));
+      const eased = easeMaterialFront(raw);
+      setFrontRadius(maxRadius * eased);
+      if (raw < 1) {
+        frontFrame = requestAnimationFrame(frame);
+        return;
+      }
+      root.classList.add("river-dom-retired");
+      root.classList.remove("river-material-front");
+      root.style.removeProperty("--river-radius");
+      root.style.removeProperty("--river-inner-radius");
+      window.__riverInstrumentation.frontCompletedAt = Math.round(performance.now() - activatedAt);
+      window.__riverInstrumentation.domRetiredAt = window.__riverInstrumentation.frontCompletedAt;
+    }
+    frontFrame = requestAnimationFrame(frame);
+  }
+
+  function triggerOriginImpulse(origin) {
+    const canvas = document.getElementById("mv-canvas");
+    if (!canvas) return;
+    // The preserved engine already maps canvas clicks into its recovered
+    // Gaussian water impulse. Re-dispatching the visitor's exact coordinates
+    // makes the physical disturbance and the visible reveal share one origin.
+    canvas.dispatchEvent(new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      clientX: origin.x,
+      clientY: origin.y
+    }));
+  }
+
+  async function bootstrap(link, origin) {
     if (bootstrapping || handedOff) return;
     bootstrapping = true;
     freezeInput();
@@ -309,8 +367,11 @@
       handedOff = true;
       const activatedAt = performance.now();
       window.__riverInstrumentation.activatedAt = activatedAt;
-      startVisualTransfer(activatedAt);
+      window.__riverInstrumentation.clickOrigin = { x: Math.round(origin.x), y: Math.round(origin.y) };
+
+      startMaterialFront(activatedAt, origin);
       document.getElementById("mv-activate").click();
+      requestAnimationFrame(() => triggerOriginImpulse(origin));
       monitor(activatedAt, link);
     } catch (error) {
       window.__riverInstrumentation.fallback = error.message;
@@ -328,15 +389,17 @@
     event.preventDefault();
     event.stopImmediatePropagation();
     window.__riverInstrumentation.clickedAt = performance.now();
-    bootstrap(link);
+    bootstrap(link, originFromEvent(event, link));
   }, true);
 
   window.addEventListener("pageshow", (event) => {
     if (!event.persisted) return;
     bootstrapping = false;
     handedOff = false;
+    cancelAnimationFrame(frontFrame);
     releaseInput?.();
-    root.classList.remove("river-transitioning", "river-canvas-enter", "river-dom-retired");
+    root.classList.remove("river-transitioning", "river-material-front", "river-dom-retired");
+    ["--river-origin-x","--river-origin-y","--river-radius","--river-inner-radius"].forEach((p) => root.style.removeProperty(p));
     const reset = document.getElementById("mv-reset");
     const crossing = window.__mvCrossing;
     if (crossing?.getPhase?.() !== "solid" && reset && !reset.disabled) reset.click();
