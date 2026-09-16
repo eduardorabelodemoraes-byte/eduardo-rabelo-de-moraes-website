@@ -266,7 +266,7 @@
   const WORLD_REVEAL_DURATION = FORMATION_DURATION + REVEAL_TRANSFER_DURATION; // 4900ms total — derived, not independently set
 
   // --- Games Arrival Experiment 01 addition ---
-  // ARRIVAL_DURATION is NOT derived from any physical decay measured in
+  // Arrival timing is NOT derived from any physical decay measured in
   // the water field — the T3 diagnosis (defect-analysis/t3-diagnosis.js)
   // found the field does NOT naturally settle on any Arrival-relevant
   // timescale (ambientSlopeMagnitude.rms and impactSlopeMagnitude.rms are
@@ -274,10 +274,16 @@
   // actually INCREASES over a 4.2s post-T3 observation window on both
   // desktop and iphone — see NOTE.txt Part A). There is nothing physical
   // to time this against; the duration is therefore an external, artistic
-  // choice, made within the instructed 1.5-3.0s exploration range and
-  // justified instead by checkpoint/typography readability (see NOTE.txt
-  // Part D for the after-the-fact validation of this choice).
-  const ARRIVAL_DURATION = 2200; // ms — T3 -> Arrival-stable; see comment above
+  // choice. v6 retains the approved 2200ms settle itself and adds a 1000ms
+  // living-liquid hold identified from the real-device v5 recording.
+  // v6 keeps the full-screen liquid endpoint alive long enough to be read,
+  // then settles it with a symmetric ease instead of collapsing most of the
+  // refraction at the start of the old cubic ease-out. The total grows by one
+  // second, but the former atmosphere-only wait is now occupied by living
+  // material and by the light's pre-navigation convergence.
+  const ARRIVAL_LIQUID_HOLD_DURATION = 1000;
+  const ARRIVAL_SETTLE_DURATION = 2200;
+  const ARRIVAL_DURATION = ARRIVAL_LIQUID_HOLD_DURATION + ARRIVAL_SETTLE_DURATION;
 
   // --- Crossing v3 addition, retained unchanged in v3.1 ---
   // STAGE_A_FORMATION_END is still the exact worldMix value at which
@@ -406,7 +412,14 @@
     // sampling, the refraction math above it, or any other uniform is
     // touched.
     uniform sampler2D uGames;
+    uniform sampler2D uGamesSettled;
     uniform float uWorldMix;
+    // v7 terminal registration. The approved Crossing continues to use the
+    // original uCover* mapping. Only the post-T3 settled target uses this
+    // visual-viewport mapping, matching the fixed CSS handoff surface that
+    // becomes the first frame of the Games document on mobile Safari.
+    uniform vec2 uSettledCoverScale;
+    uniform vec2 uSettledCoverOffset;
     // Crossing v3 addition. The Stage A/Stage B+C boundary along the
     // uWorldMix ramp (STAGE_A_FORMATION_END on the JS side, same numeric
     // value, passed through as a uniform so the two can never drift
@@ -428,6 +441,7 @@
     // only Arrival-specific JS (added below, after T3) ever sets it below
     // 1.0. This is the ONLY new shader uniform this experiment adds.
     uniform float uArrivalOpticalMix;
+    uniform float uArrivalVisualMix;
 
     varying vec2 vUv;
 
@@ -652,6 +666,21 @@
       // CONTRIBUTION to gl_FragColor is what Stage A's hard gate below
       // holds at exactly zero, not the sample itself.
       vec4 gamesColor = texture2D(uGames, frameUv);
+      vec4 arrivalGamesColor = gamesColor;
+      // Uniform branch: the extra texture read is skipped throughout the
+      // approved Crossing and the full-liquid hold. It becomes active only
+      // when the post-T3 light actually begins to converge.
+      if (uArrivalVisualMix > 0.0) {
+        // Move the same world into the destination document's actual crop as
+        // its light contracts. Because both source textures are sampled at
+        // the interpolated coordinate, the light travels as one object rather
+        // than crossfading between two vertically separated points.
+        vec2 settledFrameUv = uSettledCoverOffset + refractedViewportUv * uSettledCoverScale;
+        vec2 arrivalFrameUv = mix(frameUv, settledFrameUv, uArrivalVisualMix);
+        vec4 movingGamesColor = texture2D(uGames, arrivalFrameUv);
+        vec4 settledGamesColor = texture2D(uGamesSettled, arrivalFrameUv);
+        arrivalGamesColor = mix(movingGamesColor, settledGamesColor, uArrivalVisualMix);
+      }
 
       // --- Crossing v2 correction (this pass) ---
       // v1's defect, diagnosed on the real-device footage: gamesColor is
@@ -784,7 +813,7 @@
       // own richness value. worldBlend=1*1=1 for every pixel — pure
       // Games, matching the held endpoint by construction, unchanged from
       // v1/v2.
-      gl_FragColor = mix(homeColor, gamesColor, worldBlend);
+      gl_FragColor = mix(homeColor, arrivalGamesColor, worldBlend);
     }
   `;
 
@@ -804,6 +833,11 @@
   const GAMES_TEXTURES = Object.freeze({
     desktop: Object.freeze({ file: "prebaked/mv-games-desktop.png" }),
     mobile: Object.freeze({ file: "prebaked/mv-games-iphone.png" })
+  });
+
+  const SETTLED_GAMES_TEXTURES = Object.freeze({
+    desktop: Object.freeze({ file: "prebaked/river-games-settled-desktop.svg" }),
+    mobile: Object.freeze({ file: "prebaked/river-games-settled-iphone.svg" })
   });
 
   const canvas = document.getElementById("mv-canvas");
@@ -851,6 +885,7 @@
   let waterLoc = null;
   let textureObjects = new Map();
   let gamesTextureObjects = new Map(); // crossing experiment addition — mirrors textureObjects, loaded from GAMES_TEXTURES
+  let settledGamesTextureObjects = new Map();
   // v3.3 diagnosis-only addition (Phase 6 of the FIRST SIGHT/TRANSFER
   // instruction): CPU-readable copies of the same Home/Games images
   // already loaded for the GPU textures above, captured via an offscreen
@@ -888,6 +923,7 @@
 
   let activeTextureKey = "desktop";
   let coverMapping = { scaleX: 1, scaleY: 1, offsetX: 0, offsetY: 0 };
+  let settledCoverMapping = { scaleX: 1, scaleY: 1, offsetX: 0, offsetY: 0 };
   let waterResources = null;
   let simulationAccumulator = 0;
   let pendingImpulse = null;
@@ -1013,11 +1049,12 @@
   // ONLY place this experiment tracks its own state.
   //   "none"   — before T3 (or Arrival not yet reached this frame); the
   //              approved Crossing's own state machine is what's running.
-  //   "active" — settling in progress; arrivalOpticalMix ramping 1 -> 0.
+  //   "active" — liquid hold, then settling; optical 1 -> 0 and light 0 -> 1.
   //   "stable" — Arrival complete; arrivalOpticalMix pinned at exactly 0.
   let arrivalPhase = "none";
   let arrivalStartedAt = 0;
   let arrivalOpticalMix = 1; // the uArrivalOpticalMix uniform's JS-side value — 1.0 (no-op) until Arrival begins
+  let arrivalVisualMix = 0; // large refracted light -> settled V8-sized spark, post-T3 only
 
   let lockedScrollY = 0;
 
@@ -1478,6 +1515,7 @@
       arrivalDiag: {
         arrivalPhase,
         arrivalOpticalMix,
+        arrivalVisualMix,
         arrivalElapsedMs: arrivalPhase === "none" ? 0 : diagNow() - arrivalStartedAt,
         arrivalDurationMs: ARRIVAL_DURATION,
         arrivalAdjustedRefractionMagnitudePx: diagStatsOf(arrivalRefractionMag)
@@ -1864,6 +1902,29 @@
     };
   }
 
+  function updateSettledCoverMapping() {
+    const key = activeTextureKey;
+    const entry = manifestEntries[key];
+    const box = getViewportBox();
+    const viewportAspect = box.width / Math.max(box.height, 1);
+    const referenceAspect = entry.cssWidth / entry.cssHeight;
+    let scaleX = 1;
+    let scaleY = 1;
+
+    if (viewportAspect > referenceAspect) {
+      scaleY = referenceAspect / viewportAspect;
+    } else {
+      scaleX = viewportAspect / referenceAspect;
+    }
+
+    settledCoverMapping = {
+      scaleX,
+      scaleY,
+      offsetX: (1 - scaleX) * 0.5,
+      offsetY: (1 - scaleY) * 0.5
+    };
+  }
+
   function compileShader(type, source) {
     const shader = gl.createShader(type);
     gl.shaderSource(shader, source);
@@ -2013,6 +2074,7 @@
       activeTextureKey = nextKey;
     }
     updateCoverMapping();
+    updateSettledCoverMapping();
     if (gl) createWaterResources();
     // Crossing v3.1 addition: waterResources' dimensions are only ever
     // (re)established here (createWaterResources()'s sole call site), so
@@ -2156,6 +2218,7 @@
     arrivalPhase = "none";
     arrivalStartedAt = 0;
     arrivalOpticalMix = 1;
+    arrivalVisualMix = 0;
     clearWaterFramebuffers();
 
     // Candidate C, Stage C2 — restore each mode's own canonical resting
@@ -2344,10 +2407,9 @@
   // --- Games Arrival Experiment 01 addition ---
   // Entirely additive: reads materialPhase (never writes it), never
   // touches worldMix/liquidMix/revealSubStage/any Crossing-owned state.
-  // Only ever produces one visible effect — driving arrivalOpticalMix from
-  // 1 (no-op, matches the entire approved Crossing) down to exactly 0 —
-  // via the single uArrivalOpticalMix uniform already wired into
-  // boundedSlope. Does not touch the underlying water simulation
+  // Produces two post-T3 effects: arrivalOpticalMix drives refraction from
+  // 1 to 0, while arrivalVisualMix transfers the large refracted light to
+  // the settled V8-sized target. Neither touches the underlying simulation
   // (updateWater/runWaterStep), the ambient analytic field, or any
   // canonical C400 constant (amplitude/refraction/damping/propagation) —
   // per instruction section 8, none of that may be retuned.
@@ -2370,18 +2432,23 @@
 
     if (arrivalPhase === "active") {
       const elapsed = now - arrivalStartedAt;
-      const rawProgress = Math.min(Math.max(elapsed / ARRIVAL_DURATION, 0), 1);
-      // Cubic ease-out (1-(1-p)^3): fastest motion immediately after T3,
-      // decelerating into the settle — continues the Crossing's own
-      // "settle rather than snap" ending quality (PASSAGE_DURATION above
-      // uses the same ease-out family, one power lower) rather than
-      // introducing an unrelated pacing feel at the exact boundary where
-      // continuity matters most (instruction section 3).
-      const inv = 1 - rawProgress;
-      const eased = 1 - inv * inv * inv;
+      const settleElapsed = Math.max(0, elapsed - ARRIVAL_LIQUID_HOLD_DURATION);
+      const rawProgress = Math.min(Math.max(settleElapsed / ARRIVAL_SETTLE_DURATION, 0), 1);
+      // The hold preserves the fully opened, still-living portal. After it,
+      // smoothstep removes refraction with zero velocity at both ends, so the
+      // water becomes atmosphere rather than disappearing at the beginning
+      // of the interval as it did under the former cubic ease-out.
+      const eased = rawProgress * rawProgress * (3 - 2 * rawProgress);
       arrivalOpticalMix = 1 - eased;
+
+      // Let the light remain broad during the first part of the settle, then
+      // converge it inside the Crossing. The final canvas frame therefore
+      // already carries the quiet, V8-sized spark before navigation begins.
+      const lightRaw = Math.min(Math.max((rawProgress - 0.15) / 0.85, 0), 1);
+      arrivalVisualMix = lightRaw * lightRaw * (3 - 2 * lightRaw);
       if (elapsed >= ARRIVAL_DURATION) {
         arrivalOpticalMix = 0;
+        arrivalVisualMix = 1;
         arrivalPhase = "stable";
       }
     }
@@ -2514,6 +2581,9 @@
     gl.activeTexture(gl.TEXTURE2);
     gl.bindTexture(gl.TEXTURE_2D, gamesTextureObjects.get(activeTextureKey));
     gl.uniform1i(materialLoc.games, 2);
+    gl.activeTexture(gl.TEXTURE3);
+    gl.bindTexture(gl.TEXTURE_2D, settledGamesTextureObjects.get(activeTextureKey));
+    gl.uniform1i(materialLoc.gamesSettled, 3);
 
     gl.uniform2f(materialLoc.resolution, canvas.width, canvas.height);
     gl.uniform2f(materialLoc.waterTexel, 1 / waterResources.width, 1 / waterResources.height);
@@ -2530,6 +2600,8 @@
     gl.uniform1f(materialLoc.liquidMix, liquidMix);
     gl.uniform2f(materialLoc.coverScale, coverMapping.scaleX, coverMapping.scaleY);
     gl.uniform2f(materialLoc.coverOffset, coverMapping.offsetX, coverMapping.offsetY);
+    gl.uniform2f(materialLoc.settledCoverScale, settledCoverMapping.scaleX, settledCoverMapping.scaleY);
+    gl.uniform2f(materialLoc.settledCoverOffset, settledCoverMapping.offsetX, settledCoverMapping.offsetY);
     // Crossing experiment addition (v1/v2): the only other new uniform
     // besides uGames above, until v3's addition immediately below.
     // Everything else in draw() above and below this line is unchanged
@@ -2545,6 +2617,7 @@
     // comment), only ever driven below 1.0 by updateArrival(), which
     // never runs before materialPhase==="revealed" (T3).
     gl.uniform1f(materialLoc.arrivalOpticalMix, arrivalOpticalMix);
+    gl.uniform1f(materialLoc.arrivalVisualMix, arrivalVisualMix);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
     // Diagnostic-only marks below — read state that draw() just used
@@ -2965,13 +3038,17 @@
         liquidMix: gl.getUniformLocation(materialProgram, "uLiquidMix"),
         coverScale: gl.getUniformLocation(materialProgram, "uCoverScale"),
         coverOffset: gl.getUniformLocation(materialProgram, "uCoverOffset"),
+        settledCoverScale: gl.getUniformLocation(materialProgram, "uSettledCoverScale"),
+        settledCoverOffset: gl.getUniformLocation(materialProgram, "uSettledCoverOffset"),
         // Crossing experiment additions (v1/v2).
         games: gl.getUniformLocation(materialProgram, "uGames"),
+        gamesSettled: gl.getUniformLocation(materialProgram, "uGamesSettled"),
         worldMix: gl.getUniformLocation(materialProgram, "uWorldMix"),
         // Crossing v3 addition.
         formationEnd: gl.getUniformLocation(materialProgram, "uFormationEnd"),
         // Games Arrival Experiment 01 addition.
-        arrivalOpticalMix: gl.getUniformLocation(materialProgram, "uArrivalOpticalMix")
+        arrivalOpticalMix: gl.getUniformLocation(materialProgram, "uArrivalOpticalMix"),
+        arrivalVisualMix: gl.getUniformLocation(materialProgram, "uArrivalVisualMix")
       };
       waterLoc = {
         previousWater: gl.getUniformLocation(waterProgram, "uPreviousWater"),
@@ -3032,6 +3109,15 @@
         })
       );
       for (const [key, texture] of gamesEntries) gamesTextureObjects.set(key, texture);
+
+      const settledGamesEntries = await Promise.all(
+        Object.entries(SETTLED_GAMES_TEXTURES).map(async ([key, def]) => {
+          const override = window.__threshold_gamesSettledOverride && window.__threshold_gamesSettledOverride[key];
+          const image = override ? override : await loadImage(def.file);
+          return [key, uploadTexture(image)];
+        })
+      );
+      for (const [key, texture] of settledGamesEntries) settledGamesTextureObjects.set(key, texture);
 
       resizeCanvas();
       bindControls();
@@ -3285,8 +3371,14 @@
         // surface only.
         getArrivalPhase: () => arrivalPhase, // "none" | "active" | "stable"
         getArrivalOpticalMix: () => arrivalOpticalMix, // 1 (no-op, matches entire approved Crossing) -> 0 (Arrival-stable)
+        getArrivalVisualMix: () => arrivalVisualMix, // 0 (large Crossing light) -> 1 (settled V8-sized spark)
         getArrivalStartedAt: () => arrivalStartedAt, // performance.now() timestamp Arrival's own clock was anchored at (T3), 0 if not yet reached
-        getArrivalDuration: () => ARRIVAL_DURATION
+        getArrivalDuration: () => ARRIVAL_DURATION,
+        getArrivalDurations: () => ({
+          liquidHold: ARRIVAL_LIQUID_HOLD_DURATION,
+          settle: ARRIVAL_SETTLE_DURATION,
+          total: ARRIVAL_DURATION
+        })
       };
     } catch (error) {
       setStatus("fallback", `init failed: ${error.message}`);

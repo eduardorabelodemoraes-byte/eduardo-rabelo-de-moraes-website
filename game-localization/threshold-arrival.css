@@ -1,8 +1,7 @@
-/* experiment/river-crossing-openai-v5
-   Boundary B refinement. A valid threshold handoff arrives with the same
-   atmosphere and large light already visible in the final Crossing frame.
-   The Games document first reproduces that exact visual anchor, then lets the
-   real V8 spark take over and contract while the thesis emerges. */
+/* experiment/river-crossing-openai-v7
+   The canvas now finishes at the destination's visual-viewport crop. This
+   page begins with the same atmosphere and spark, then materializes the live
+   world in layers without ever distorting readable typography. */
 
 html.threshold-handoff #prologue {
   opacity: 1 !important;
@@ -10,9 +9,9 @@ html.threshold-handoff #prologue {
   transition: none !important;
 }
 
-/* First-paint bridge: the same atmosphere-only target used by the Crossing is
-   held behind the real prologue for a fraction of a second. This means the
-   document change no longer begins from a different-looking frame. */
+/* First-paint bridge: the same settled target and CSS cover geometry used by
+   the terminal Crossing frame. It remains the only visible authored object
+   while ownership passes from WebGL to the live Games atmosphere. */
 html.threshold-handoff body::before {
   content: "";
   position: fixed;
@@ -20,23 +19,23 @@ html.threshold-handoff body::before {
   z-index: 9;
   pointer-events: none;
   background-color: #050510;
-  background-image: url("../threshold-integration/prebaked/river-games-desktop.svg");
+  background-image: url("../threshold-integration/prebaked/river-games-settled-desktop.svg");
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
   opacity: 1;
-  animation: river-handoff-cover-release 720ms cubic-bezier(.18,.72,.22,1) 180ms both;
+  animation: river-handoff-cover-release 920ms cubic-bezier(.18,.72,.22,1) 160ms both;
 }
 
 @media (max-width: 700px) {
   html.threshold-handoff body::before {
-    background-image: url("../threshold-integration/prebaked/river-games-iphone.svg");
+    background-image: url("../threshold-integration/prebaked/river-games-settled-iphone.svg");
   }
 }
 
 /* Keep the arrival focused on one continuous visual fact: atmosphere ->
-   spark -> thesis. Other narrative lines wait until the handoff-specific
-   release. */
+   spark -> thesis. Navigation and the chapter label do not exist yet, so the
+   destination cannot read as a fully assembled replacement document. */
 html.threshold-handoff:not(.threshold-arrival-ready) #prologue .narr,
 html.threshold-handoff:not(.threshold-arrival-ready) #prologue .narr.in {
   opacity: 0 !important;
@@ -44,25 +43,42 @@ html.threshold-handoff:not(.threshold-arrival-ready) #prologue .narr.in {
   transform: translate3d(0,14px,0) scale(.99) !important;
 }
 
-/* The thesis starts only after the large light has visibly begun converging,
-   so it reads as being born from the same arrival rather than from a new page. */
+html.threshold-handoff:not(.threshold-arrival-ready) #side-nav,
+html.threshold-handoff:not(.threshold-arrival-ready) #mobile-chapter {
+  opacity: 0 !important;
+  transition: none !important;
+}
+
+html.threshold-handoff.threshold-arrival-ready #side-nav,
+html.threshold-handoff.threshold-arrival-ready #mobile-chapter {
+  opacity: .85 !important;
+  transition: opacity 720ms ease-out !important;
+}
+
+@media (min-width: 641px) {
+  html.threshold-handoff.threshold-arrival-ready #side-nav {
+    opacity: 1 !important;
+  }
+}
+
+/* The thesis starts after ownership of the already-small spark has begun to
+   pass to the real document. */
 html.threshold-handoff #prologue > .field > p:first-of-type {
   opacity: 0;
   filter: blur(5px);
   transform: translate3d(0,10px,0) scale(.992);
-  animation: threshold-thesis-arrive 1250ms cubic-bezier(.16,.72,.20,1) 520ms both;
+  animation: threshold-thesis-arrive 1180ms cubic-bezier(.16,.72,.20,1) 860ms both;
 }
 
-/* The real 3px V8 spark is the object that survives the handoff. While the
-   cover image fades, its halo begins at the visual size/intensity of the
-   Crossing light and contracts continuously into the canonical V8 pulse. */
+/* The Crossing has already reduced the light. This is a quiet crossfade of
+   renderer ownership at one size, position and halo — never a second shrink. */
 html.threshold-handoff #prologue .spark {
   position: relative;
   z-index: 12;
   transform-origin: 50% 50%;
   animation:
-    river-handoff-spark-bridge 1280ms cubic-bezier(.16,.76,.20,1) both,
-    pulse 3s ease-in-out 1280ms infinite;
+    river-handoff-spark-takeover 1020ms cubic-bezier(.18,.72,.22,1) both,
+    pulse 3s ease-in-out 1020ms infinite;
 }
 
 /* Once the thesis has begun to settle, release the remaining visible
@@ -76,34 +92,20 @@ html.threshold-handoff.threshold-arrival-ready #prologue .narr:nth-of-type(4).in
 html.threshold-handoff.threshold-arrival-ready #prologue .narr:nth-of-type(5).in { animation-delay: 420ms; }
 html.threshold-handoff.threshold-arrival-ready #prologue .narr:nth-of-type(6).in { animation-delay: 560ms; }
 
-html.threshold-handoff #side-nav {
-  transition: opacity 850ms ease-out 900ms !important;
-}
-html.threshold-handoff #mobile-chapter {
-  transition: opacity 600ms ease-out 980ms !important;
-}
-
 @keyframes river-handoff-cover-release {
   0% { opacity: 1; }
-  36% { opacity: 1; }
+  24% { opacity: 1; }
   100% { opacity: 0; }
 }
 
-@keyframes river-handoff-spark-bridge {
+@keyframes river-handoff-spark-takeover {
   0% {
     opacity: 0;
     transform: scale(1);
-    box-shadow: 0 0 34px 14px rgba(255,255,255,.66);
+    box-shadow: 0 0 20px 6px rgba(255,255,255,.5);
   }
-  18% {
-    opacity: 1;
-    transform: scale(1.08);
-    box-shadow: 0 0 31px 12px rgba(255,255,255,.64);
-  }
-  55% {
-    opacity: .88;
-    transform: scale(1.03);
-    box-shadow: 0 0 25px 9px rgba(255,255,255,.57);
+  20% {
+    opacity: 0;
   }
   100% {
     opacity: .5;

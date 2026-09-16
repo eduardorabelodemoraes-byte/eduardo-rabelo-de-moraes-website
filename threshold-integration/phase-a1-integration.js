@@ -36,8 +36,28 @@
   let latestSnapshot = null;
   let releaseInput = null;
   let frontFrame = 0;
+  let originalThemeColor = null;
 
   const root = document.documentElement;
+
+  function moveBrowserChromeIntoGamesWorld() {
+    let meta = document.querySelector('meta[name="theme-color"]');
+    if (!meta) {
+      meta = document.createElement("meta");
+      meta.name = "theme-color";
+      document.head.appendChild(meta);
+    }
+    if (originalThemeColor === null) originalThemeColor = meta.getAttribute("content");
+    meta.setAttribute("content", "#050510");
+  }
+
+  function restoreBrowserChrome() {
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (!meta) return;
+    if (originalThemeColor === null) meta.remove();
+    else meta.setAttribute("content", originalThemeColor);
+    originalThemeColor = null;
+  }
 
   function log(label, detail) {
     console.info(`[river-v4] ${label}`, detail === undefined ? "" : detail);
@@ -148,9 +168,18 @@
     return { desktop, mobile };
   }
 
-  function applyOverrides(homeImages, gamesImages) {
+  async function loadSettledGamesOverride() {
+    const [desktop, mobile] = await Promise.all([
+      loadImage(`${BASE}prebaked/river-games-settled-desktop.svg`),
+      loadImage(`${BASE}prebaked/river-games-settled-iphone.svg`)
+    ]);
+    return { desktop, mobile };
+  }
+
+  function applyOverrides(homeImages, gamesImages, settledGamesImages) {
     window.__threshold_homeOverride = homeImages;
     window.__threshold_gamesOverride = gamesImages;
+    window.__threshold_gamesSettledOverride = settledGamesImages;
     window.__MV_MANIFEST_INLINE__ = {
       desktop: { file: "prebaked/mv-home-desktop.png", cssWidth: HOME_REFERENCE.desktop.cssWidth, cssHeight: HOME_REFERENCE.desktop.cssHeight },
       mobile: { file: "prebaked/mv-home-iphone.png", cssWidth: HOME_REFERENCE.mobile.cssWidth, cssHeight: HOME_REFERENCE.mobile.cssHeight }
@@ -230,8 +259,13 @@
     engineReadyPromise = (async () => {
       ensureStylesheet();
       ensureMarkup();
-      const [home, games] = await Promise.all([loadHomeOverride(), loadGamesOverride(), ensureCaptureLibrary()]);
-      applyOverrides(home, games);
+      const [home, games, settledGames] = await Promise.all([
+        loadHomeOverride(),
+        loadGamesOverride(),
+        loadSettledGamesOverride(),
+        ensureCaptureLibrary()
+      ]);
+      applyOverrides(home, games, settledGames);
       if (!window.__mvCrossing) await loadEngineScript();
       await waitForEngineReady();
       window.__riverInstrumentation.prewarmReadyAt = Math.round(performance.now());
@@ -484,6 +518,10 @@
         return;
       }
       root.classList.add("river-dom-retired");
+      // The material now owns every visible pixel. Move Safari's chrome to
+      // the Games palette here so that change cannot coincide with the later
+      // document handoff and expose it as a separate event.
+      moveBrowserChromeIntoGamesWorld();
       root.classList.remove("river-material-front");
       root.style.removeProperty("--river-radius");
       root.style.removeProperty("--river-inner-radius");
@@ -551,6 +589,7 @@
     snapshotPromise = null;
     cancelAnimationFrame(frontFrame);
     releaseInput?.();
+    restoreBrowserChrome();
     root.classList.remove("river-transitioning", "river-material-front", "river-dom-retired");
     ["--river-origin-x","--river-origin-y","--river-radius","--river-inner-radius"].forEach((p) => root.style.removeProperty(p));
     const reset = document.getElementById("mv-reset");

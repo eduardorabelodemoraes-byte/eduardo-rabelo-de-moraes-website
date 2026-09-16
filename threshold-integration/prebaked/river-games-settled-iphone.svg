@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="390" height="844" viewBox="0 0 390 844">
+  <defs>
+    <radialGradient id="cyan" cx="30%" cy="30%" r="78%">
+      <stop offset="0" stop-color="#18e0ff" stop-opacity=".16"/>
+      <stop offset=".34" stop-color="#18beff" stop-opacity=".09"/>
+      <stop offset=".72" stop-color="#1478d2" stop-opacity=".025"/>
+      <stop offset="1" stop-color="#050510" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="violet" cx="68%" cy="72%" r="80%">
+      <stop offset="0" stop-color="#c026f5" stop-opacity=".022"/>
+      <stop offset=".55" stop-color="#7e16be" stop-opacity=".008"/>
+      <stop offset="1" stop-color="#050510" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="vignette" cx="50%" cy="45%" r="78%">
+      <stop offset=".42" stop-color="#000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#020208" stop-opacity=".72"/>
+    </radialGradient>
+    <radialGradient id="spark" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#ffffff" stop-opacity=".50"/>
+      <stop offset=".12" stop-color="#ffffff" stop-opacity=".42"/>
+      <stop offset=".45" stop-color="#d6e8ff" stop-opacity=".12"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="390" height="844" fill="#050510"/>
+  <rect width="390" height="844" fill="url(#cyan)"/>
+  <rect width="390" height="844" fill="url(#violet)"/>
+  <rect width="390" height="844" fill="url(#vignette)"/>
+  <circle cx="195" cy="152" r="18" fill="url(#spark)"/>
+  <circle cx="195" cy="152" r="1.5" fill="#fff" fill-opacity=".5"/>
+</svg>
