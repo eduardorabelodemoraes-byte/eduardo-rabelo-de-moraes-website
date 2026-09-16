@@ -63,6 +63,32 @@ html.threshold-handoff #mobile-chapter {
   100% { opacity: 1; filter: blur(0); transform: translate3d(0,0,0) scale(1); }
 }
 
+/* experiment/river-crossing-openai-v4
+   The canvas-side light ends at full brightness, while V8's canonical
+   pulse starts at 50% opacity. That single property difference was enough
+   to read as a frame cut. On a handoff only, hold the real spark at the
+   bright arrival state and let it contract/dim into the canonical V8 pulse
+   before handing control back to the normal infinite animation. */
+html.threshold-handoff #prologue .spark {
+  transform-origin: 50% 50%;
+  animation:
+    river-handoff-spark-converge 1050ms cubic-bezier(.16,.76,.20,1) both,
+    pulse 3s ease-in-out 1050ms infinite;
+}
+
+@keyframes river-handoff-spark-converge {
+  0% {
+    opacity: 1;
+    transform: scale(1.18);
+    box-shadow: 0 0 24px 8px rgba(255,255,255,.58);
+  }
+  100% {
+    opacity: .5;
+    transform: scale(1);
+    box-shadow: 0 0 20px 6px rgba(255,255,255,.5);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html.threshold-handoff #prologue > .field > p:first-of-type,
   html.threshold-handoff.threshold-arrival-ready #prologue .narr.in {
@@ -75,5 +101,11 @@ html.threshold-handoff #mobile-chapter {
   html.threshold-handoff #mobile-chapter {
     transition-delay: 0ms !important;
     transition-duration: 300ms !important;
+  }
+  html.threshold-handoff #prologue .spark {
+    animation: none !important;
+    opacity: .5;
+    transform: none;
+    box-shadow: 0 0 20px 6px rgba(255,255,255,.5);
   }
 }
