@@ -815,19 +815,20 @@
       // own richness value. worldBlend=1*1=1 for every pixel — pure
       // Games, matching the held endpoint by construction, unchanged from
       // v1/v2.
-      // v9: retain the existing refracted surface after the aperture fills
-      // the screen. Its reflections still come from uHome and the unchanged
-      // water slope; no noise, frozen frame or separate liquid simulation.
-      // This envelope starts only after first sight, and releases together
-      // with the final light convergence. Timing alone could not do this:
-      // the old worldBlend=1 endpoint erased every surface reflection.
-      float surfacePresence = smoothstep(0.20, 0.85, gamesTimeInput)
-        * (1.0 - uArrivalVisualMix);
-      float reflection = 0.07 + 0.16 * localRichness;
-      vec3 liquidSurface = cleanGamesColor.rgb * 0.24
-        + homeColor.rgb * reflection;
-      vec3 worldColor = mix(homeColor.rgb, arrivalGamesColor.rgb, worldBlend);
-      worldColor = mix(worldColor, liquidSurface, surfacePresence);
+      // v10: hold a passage state of the ORIGINAL material, not a dimmed
+      // replacement surface. Only its takeover clock is retimed. All source
+      // colors, local slope thresholds, refraction and simulation keep their
+      // original values. At <= .62 this is the original opening exactly.
+      // The spatial pattern remains alive because localRichness is recomputed
+      // from the continuing water field on every frame; no frame is frozen.
+      // The existing final settle releases the clock to its original endpoint.
+      // .62 is the experimental hold point, subject to real-device validation.
+      float materialTime = mix(min(gamesTimeInput, 0.62), gamesTimeInput, uArrivalVisualMix);
+      float materialThreshold = mix(0.85, -0.20, materialTime);
+      float materialGate = smoothstep(materialThreshold - 0.15, materialThreshold + 0.15, localRichness);
+      float materialBlend = smoothstep(tau - 0.15, tau + 0.15, materialTime) * materialGate;
+      vec3 worldColor = mix(homeColor.rgb, arrivalGamesColor.rgb, materialBlend);
+      // Keep v9's approved light visibility/contraction/registration unchanged.
       gl_FragColor = vec4(worldColor + arrivalLight * worldBlend, 1.0);
     }
   `;
