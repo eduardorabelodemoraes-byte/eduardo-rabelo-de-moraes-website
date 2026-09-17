@@ -6,6 +6,7 @@
   <meta name="description" content="Eduardo Rabelo de Moraes — Translator and Localization Specialist.">
   <title>Eduardo Rabelo de Moraes</title>
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="localization.css">
   <link rel="stylesheet" href="threshold-integration/arrival-anchor.css">
   <script src="script.js" defer></script>
   <!-- Integration Candidate A1: isolated, gated adapter. Complete no-op
@@ -30,20 +31,9 @@
         or the equivalent root-relative Home anchor.
         Do not duplicate the Contact section or create a separate Contact page.
       -->
-      <nav class="primary-nav" aria-label="Primary navigation">
-        <ul class="primary-nav__list">
-          <li><a href="#home" aria-current="page">Home</a></li>
-          <li><a href="#expertise">Expertise</a></li>
-          <li><a href="#insights-materials">Insights &amp; Materials</a></li>
-          <li><a href="#about">About</a></li>
-          <li><a href="#contact">Contact</a></li>
-        </ul>
-      </nav>
-
-      <details class="mobile-nav">
-        <summary>Menu</summary>
-        <nav class="mobile-nav__panel" aria-label="Mobile navigation">
-          <ul class="mobile-nav__list">
+      <div class="site-header__controls">
+        <nav class="primary-nav" aria-label="Primary navigation">
+          <ul class="primary-nav__list">
             <li><a href="#home" aria-current="page">Home</a></li>
             <li><a href="#expertise">Expertise</a></li>
             <li><a href="#insights-materials">Insights &amp; Materials</a></li>
@@ -51,7 +41,25 @@
             <li><a href="#contact">Contact</a></li>
           </ul>
         </nav>
-      </details>
+
+        <nav class="language-switcher" aria-label="Language">
+          <span aria-current="true">EN</span>
+          <a href="/pt-br/" lang="pt-BR" hreflang="pt-BR">PT</a>
+        </nav>
+
+        <details class="mobile-nav">
+          <summary>Menu</summary>
+          <nav class="mobile-nav__panel" aria-label="Mobile navigation">
+            <ul class="mobile-nav__list">
+              <li><a href="#home" aria-current="page">Home</a></li>
+              <li><a href="#expertise">Expertise</a></li>
+              <li><a href="#insights-materials">Insights &amp; Materials</a></li>
+              <li><a href="#about">About</a></li>
+              <li><a href="#contact">Contact</a></li>
+            </ul>
+          </nav>
+        </details>
+      </div>
     </div>
   </header>
 

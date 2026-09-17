@@ -10,7 +10,11 @@
 
   const ENTRY_SELECTOR = 'a.expertise__link[href="game-localization/"]';
   const PREWARM_TRIGGER_SELECTOR = "#expertise";
-  const BASE = "threshold-integration/";
+  // Resolve assets from this adapter's own location so the exact same
+  // approved Crossing can be reused by localized routes one level deeper.
+  const BASE = document.currentScript?.src
+    ? new URL("./", document.currentScript.src).href
+    : "/threshold-integration/";
   const READY_TIMEOUT_MS = 8000;
   const READY_POLL_MS = 40;
   const MATERIAL_FRONT_DURATION_MS = 1650;
