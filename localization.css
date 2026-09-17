@@ -63,6 +63,25 @@
   color: #ffcf8f;
 }
 
+/* The only Expertise item that opens another world receives a restrained,
+   persistent affordance. PDF entries already have their own explicit CTA. */
+.expertise__link--portal {
+  text-decoration-color: color-mix(in srgb, currentColor 32%, transparent);
+}
+
+.expertise__link--portal span {
+  display: inline-block;
+  margin-left: 0.18em;
+  color: var(--color-blue);
+  font-size: 0.82em;
+  transition: transform 180ms ease;
+}
+
+.expertise__link--portal:hover span,
+.expertise__link--portal:focus-visible span {
+  transform: translateX(0.16em);
+}
+
 html.threshold-handoff:not(.threshold-arrival-ready) .experience-language {
   opacity: 0;
   pointer-events: none;
