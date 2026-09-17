@@ -66,7 +66,7 @@
 /* The only Expertise item that opens another world receives a restrained,
    persistent affordance. PDF entries already have their own explicit CTA. */
 .expertise__link--portal {
-  text-decoration-color: color-mix(in srgb, currentColor 32%, transparent);
+  text-decoration-color: rgba(18, 63, 87, 0.3);
 }
 
 .expertise__link--portal span {
