@@ -465,8 +465,7 @@ a {
   }
 
   .hero__area + .hero__area::before {
-    margin-right: 0.7rem;
-    margin-left: 0;
+    content: none;
   }
 
   .hero__actions {
