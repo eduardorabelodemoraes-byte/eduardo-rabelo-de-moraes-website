@@ -14,6 +14,20 @@
     <xhtml:link rel="alternate" hreflang="x-default" href="https://eduardorabelodemoraes.com.br/" />
   </url>
   <url>
+    <loc>https://eduardorabelodemoraes.com.br/legal-practice/</loc>
+    <lastmod>2026-10-27</lastmod>
+    <xhtml:link rel="alternate" hreflang="en" href="https://eduardorabelodemoraes.com.br/legal-practice/" />
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://eduardorabelodemoraes.com.br/pt-br/legal-practice/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://eduardorabelodemoraes.com.br/legal-practice/" />
+  </url>
+  <url>
+    <loc>https://eduardorabelodemoraes.com.br/pt-br/legal-practice/</loc>
+    <lastmod>2026-10-27</lastmod>
+    <xhtml:link rel="alternate" hreflang="en" href="https://eduardorabelodemoraes.com.br/legal-practice/" />
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://eduardorabelodemoraes.com.br/pt-br/legal-practice/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://eduardorabelodemoraes.com.br/legal-practice/" />
+  </url>
+  <url>
     <loc>https://eduardorabelodemoraes.com.br/insights/</loc>
     <lastmod>2026-10-06</lastmod>
     <xhtml:link rel="alternate" hreflang="en" href="https://eduardorabelodemoraes.com.br/insights/" />
