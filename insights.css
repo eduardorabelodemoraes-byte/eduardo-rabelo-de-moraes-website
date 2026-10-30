@@ -325,6 +325,18 @@
   font: inherit;
 }
 
+.article-copy .article-paired-pauses {
+  margin-block: 2.5rem;
+}
+
+.article-paired-pauses blockquote {
+  margin: 0;
+}
+
+.article-paired-pauses blockquote + blockquote {
+  margin-top: 1.5rem;
+}
+
 .workflow-comparison {
   margin: 2.5rem 0;
   display: grid;
