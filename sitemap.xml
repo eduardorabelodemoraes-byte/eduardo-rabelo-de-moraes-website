@@ -95,4 +95,16 @@
     <xhtml:link rel="alternate" hreflang="pt-BR" href="https://eduardorabelodemoraes.com.br/pt-br/game-localization/" />
     <xhtml:link rel="alternate" hreflang="x-default" href="https://eduardorabelodemoraes.com.br/game-localization/" />
   </url>
+  <url>
+    <loc>https://eduardorabelodemoraes.com.br/copywriting-transcreation/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://eduardorabelodemoraes.com.br/copywriting-transcreation/" />
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://eduardorabelodemoraes.com.br/pt-br/copywriting-transcreation/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://eduardorabelodemoraes.com.br/copywriting-transcreation/" />
+  </url>
+  <url>
+    <loc>https://eduardorabelodemoraes.com.br/pt-br/copywriting-transcreation/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://eduardorabelodemoraes.com.br/copywriting-transcreation/" />
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://eduardorabelodemoraes.com.br/pt-br/copywriting-transcreation/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://eduardorabelodemoraes.com.br/copywriting-transcreation/" />
+  </url>
 </urlset>
