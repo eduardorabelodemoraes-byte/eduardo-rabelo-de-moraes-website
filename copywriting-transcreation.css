@@ -215,6 +215,17 @@
   font-weight: 650;
 }
 
+@media (min-width: 851px) {
+  .cw-section p, .cw-section li {
+    font-size: clamp(1.1875rem, 1.45vw, 1.375rem);
+    line-height: 1.6;
+  }
+
+  .cw-case-row figcaption {
+    font-size: clamp(0.96875rem, 1.1vw, 1rem);
+  }
+}
+
 @media (max-width: 850px) {
   .cw-hero .cw-wrap, .cw-reason .cw-wrap, .cw-contact .cw-wrap {
     grid-template-columns: 1fr;
