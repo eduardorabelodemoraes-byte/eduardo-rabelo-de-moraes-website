@@ -63,13 +63,12 @@
   color: #ffcf8f;
 }
 
-/* The only Expertise item that opens another world receives a restrained,
-   persistent affordance. PDF entries already have their own explicit CTA. */
-.expertise__link--portal {
+/* Expertise links share a persistent underline. PDF entries have their own CTA. */
+:where(.expertise__area) .expertise__link {
   text-decoration-color: rgba(18, 63, 87, 0.3);
 }
 
-.expertise__link--portal span {
+:where(.expertise__area) .expertise__link span {
   display: inline-block;
   margin-left: 0.18em;
   color: var(--color-blue);
@@ -77,8 +76,8 @@
   transition: transform 180ms ease;
 }
 
-.expertise__link--portal:hover span,
-.expertise__link--portal:focus-visible span {
+:where(.expertise__area) .expertise__link:hover span,
+:where(.expertise__area) .expertise__link:focus-visible span {
   transform: translateX(0.16em);
 }
 
