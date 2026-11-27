@@ -68,7 +68,11 @@
   text-decoration-color: rgba(18, 63, 87, 0.3);
 }
 
-:where(.expertise__area) .expertise__link span {
+.expertise__link-ending {
+  white-space: nowrap;
+}
+
+:where(.expertise__area) .expertise__link span[aria-hidden="true"] {
   display: inline-block;
   margin-left: 0.18em;
   color: var(--color-blue);
@@ -76,8 +80,8 @@
   transition: transform 180ms ease;
 }
 
-:where(.expertise__area) .expertise__link:hover span,
-:where(.expertise__area) .expertise__link:focus-visible span {
+:where(.expertise__area) .expertise__link:hover span[aria-hidden="true"],
+:where(.expertise__area) .expertise__link:focus-visible span[aria-hidden="true"] {
   transform: translateX(0.16em);
 }
 
